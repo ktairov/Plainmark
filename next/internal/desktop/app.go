@@ -1,12 +1,9 @@
 package desktop
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -16,6 +13,7 @@ import (
 
 	"plainmark/internal/mathrender"
 	"plainmark/internal/preview"
+	"plainmark/internal/workspace"
 )
 
 type App struct {
@@ -24,7 +22,8 @@ type App struct {
 	md             markdown.Options
 	math           *mathrender.Renderer
 	path           string
-	disk           []byte
+	store          *workspace.Workspace
+	note           workspace.Note
 	mode           int
 	wrap           bool
 	busy           bool
@@ -50,7 +49,7 @@ func New() (*App, error) {
 }
 
 func (a *App) setDocument(path string, data []byte) {
-	a.path, a.disk = path, bytes.Clone(data)
+	a.path = path
 	b := editor.NewBuffer(string(data))
 	b.SetLanguage(editor.LanguageFor("note.md"))
 	b.MarkSaved()
@@ -108,70 +107,50 @@ func (a *App) chooseFile() {
 }
 
 func (a *App) load(path string) error {
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".md" && ext != ".mdx" {
+	if !workspace.IsMarkdown(path) {
 		return errors.New("Only Markdown files can be opened")
 	}
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(path)
+	store, err := workspace.Open(filepath.Dir(path))
 	if err != nil {
 		return err
 	}
-	a.update(func() { a.setDocument(path, data); a.status = "Opened " + path })
+	note, err := store.Read(filepath.Base(path))
+	if err != nil {
+		return err
+	}
+	a.update(func() {
+		a.setDocument(path, []byte(note.Markdown))
+		a.store, a.note = store, note
+		a.status = "Opened " + path
+	})
 	return nil
 }
 
-// save writes a temporary sibling before replacing the original. Full workspace
-// policy, watcher and multi-tab conflicts are added in the next migration stages.
 func (a *App) save() {
-	if a.path == "" || a.busy {
+	if a.path == "" || a.busy || a.store == nil {
 		return
 	}
-	path, expected := a.path, bytes.Clone(a.disk)
+	store, note := a.store, a.note
 	submitted := a.code.Buffer.String()
 	buf := a.code.Buffer
 	a.start(func() error {
-		actual, err := os.ReadFile(path)
+		saved, err := store.Save(note.Path, submitted, note.Revision, false)
 		if err != nil {
-			return err
-		}
-		if !bytes.Equal(actual, expected) {
-			return errors.New("Conflict: file changed on disk. Your draft has been kept.")
-		}
-		info, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-		f, err := os.CreateTemp(filepath.Dir(path), ".notes-save-*")
-		if err != nil {
-			return err
-		}
-		defer os.Remove(f.Name())
-		defer f.Close()
-		if err = f.Chmod(info.Mode().Perm()); err != nil {
-			return err
-		}
-		if _, err = f.WriteString(submitted); err != nil {
-			return err
-		}
-		if err = f.Sync(); err != nil {
-			return err
-		}
-		if err = f.Close(); err != nil {
-			return err
-		}
-		if err = os.Rename(f.Name(), path); err != nil {
+			if workspace.IsCode(err, "conflict") {
+				return fmt.Errorf("Conflict: %w", err)
+			}
 			return err
 		}
 		a.update(func() {
-			a.disk = []byte(submitted)
+			a.note = saved
 			if a.code.Buffer == buf && buf.String() == submitted {
 				buf.MarkSaved()
 			}
-			a.status = "Saved " + path
+			a.status = "Saved " + a.path
 		})
 		return nil
 	})

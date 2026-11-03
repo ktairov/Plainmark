@@ -30,6 +30,12 @@ PLAINMARK_SNAPSHOTS=/tmp/plainmark-snapshots go test ./internal/desktop -run Sna
 go run ./tools/mathprobe
 ```
 
+Проверка криптографической совместимости с исходным Rust-кодом (требуется Cargo):
+
+```sh
+python3 scripts/crypto_compat.py
+```
+
 MyGo зафиксирован на v0.7.4, движок формул `go-tex/math` — на v0.50.0. Зависимость Luo-Studio используется только сравнительным инструментом и не импортируется приложением.
 
 Исходная реализация Tauri находится в родительской директории. Функциональный контракт и незавершённые пункты: [план](../docs/MIGRATION_PLAN.md), [приёмка](../docs/ACCEPTANCE.md).

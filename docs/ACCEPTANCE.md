@@ -49,3 +49,5 @@
 | Дата | Версия | Проверка | Результат |
 | --- | --- | --- | --- |
 | 2026-11-03 | `cb2275f` | TS/Vitest, TypeScript + Vite | 66 тестов прошли, frontend собран; GUI/Rust не проверены |
+| 2026-11-03 | Этап 1 | Go headless UI + smoke настоящего окна | Редактор, preview/split, формулы, Unicode, clipboard, undo/redo, поиск, сохранение, таблица, якорь, длинный документ |
+| 2026-11-03 | Этап 2 | Go workspace/crypto + исходный Rust crypto harness | Файловое ядро, OS watcher, immutable fixture, Go ↔ Rust random Unicode round trips; UI-подключение watcher ещё впереди |

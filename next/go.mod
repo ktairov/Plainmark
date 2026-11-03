@@ -4,8 +4,10 @@ go 1.27.3
 
 require (
 	github.com/egoist/mygo v0.7.4
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-tex/math v0.50.0
 	github.com/luo-studio/go-tex v0.0.0-20260508062349-60635a3613c5
+	golang.org/x/crypto v0.58.0
 )
 
 require (
@@ -32,8 +34,8 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.11 // indirect
 	github.com/yuin/goldmark v1.8.2 // indirect
 	golang.org/x/image v0.46.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	modernc.org/knuth v0.5.5 // indirect
 	modernc.org/token v1.1.0 // indirect
