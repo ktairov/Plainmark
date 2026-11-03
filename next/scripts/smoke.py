@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Exercise the real native window. Requires build/plainmark built with -tags e2e."""
+import base64
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="plainmark-smoke-") as temp:
+        directory = Path(temp)
+        note = directory / "note.md"
+        note.write_text("# Исходный\n\nFormula $x_i^2$\n", encoding="utf-8")
+        sockpath = directory / "app.sock"
+        process = subprocess.Popen(
+            [str(ROOT / "build/plainmark"), str(note)],
+            cwd=ROOT,
+            env={**os.environ, "MYGO_AUTOMATION": str(sockpath)},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        try:
+            deadline = time.monotonic() + 30
+            while not sockpath.exists():
+                if process.poll() is not None:
+                    raise RuntimeError(process.stdout.read().decode())
+                if time.monotonic() > deadline:
+                    raise TimeoutError("live app did not create automation socket")
+                time.sleep(.05)
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(15)
+                client.connect(str(sockpath))
+                stream = client.makefile("rwb")
+                request_id = 0
+
+                def rpc(method, **params):
+                    nonlocal request_id
+                    request_id += 1
+                    stream.write((json.dumps({"id": request_id, "method": method, "params": params}) + "\n").encode())
+                    stream.flush()
+                    response = json.loads(stream.readline())
+                    if "error" in response:
+                        raise RuntimeError(response)
+                    return response["result"]
+
+                deadline = time.monotonic() + 30
+                windows = rpc("windows")["windows"]
+                while not windows:
+                    if process.poll() is not None or time.monotonic() > deadline:
+                        raise RuntimeError("app did not create a window")
+                    time.sleep(.05)
+                    windows = rpc("windows")["windows"]
+                rpc("idle", timeout=10000)
+                assert len(windows) == 1 and windows[0]["kind"] == "content", windows
+                rpc("act", key="editor", action="focus")
+                rpc("idle", timeout=10000)
+                rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "# Проверено\n\nFormula $x_i^2$\n"}])
+                rpc("idle", timeout=10000)
+                rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+Z"}])
+                rpc("idle", timeout=10000)
+                assert "Исходный" in next(n for n in rpc("tree")["nodes"] if n.get("key") == "editor")["value"]
+                rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+Shift+Z"}])
+                rpc("idle", timeout=10000)
+                rpc("act", key="save", action="press")
+                deadline = time.monotonic() + 15
+                while True:
+                    rpc("idle", timeout=10000)
+                    if "Проверено" in note.read_text(encoding="utf-8"):
+                        break
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("save did not persist the Unicode edit")
+                nodes = rpc("tree")["nodes"]
+                assert any(n.get("role") == "heading" and n.get("label") == "Проверено" for n in nodes)
+                # Select a whole line and exercise the native edit menu/clipboard.
+                rpc("act", key="editor", action="selectText", **{"from": 0, "to": 11})
+                rpc("menu", path=["Edit", "Copy"])
+                rpc("idle", timeout=10000)
+                capture = rpc("capture")
+                output = os.environ.get("PLAINMARK_SMOKE_CAPTURE")
+                if output:
+                    Path(output).write_bytes(base64.b64decode(capture["png"]))
+                print("PASS: native window, Unicode input, undo/redo, save, live preview, native Copy menu and capture")
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
+
+
+if __name__ == "__main__":
+    main()
