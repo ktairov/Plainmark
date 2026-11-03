@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default app capabilities",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "clipboard-manager:allow-write-text",
+    "opener:default",
+    "window-state:default",
+    "dialog:default"
+  ]
+}

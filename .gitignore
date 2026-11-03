@@ -1,0 +1,41 @@
+# JavaScript / TypeScript
+node_modules/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Rust / Tauri
+target/
+/src-tauri/gen/schemas/
+/src-tauri/.build-number.lock
+/src-tauri/.tauri-build-*.json
+/src-tauri/build-number.json.*.tmp
+
+# Go / MyGo (new application lives in next/)
+.mygo/
+/next/build/
+/next/bin/
+/next/dist/
+/next/vendor/
+*.test
+*.prof
+
+# Local configuration and signing material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS / editor / temporary files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.swp
+*.swo
+*~

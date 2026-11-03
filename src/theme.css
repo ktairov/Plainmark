@@ -1,0 +1,31 @@
+.app-shell[data-theme] {
+  --color-accent: var(--theme-accent);
+  --color-accent-soft: var(--theme-accent-soft);
+  --color-accent-contrast: var(--theme-accent-contrast);
+  --color-app-bg: var(--theme-page);
+  --color-border: var(--theme-border);
+  --color-border-soft: color-mix(in srgb, var(--theme-border) 65%, var(--theme-page));
+  --color-control: var(--theme-control);
+  --color-control-hover: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-control));
+  --color-danger: var(--theme-danger);
+  --color-drop: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-page));
+  --color-drop-edge: var(--theme-accent);
+  --color-heading: var(--theme-heading);
+  --color-hover: color-mix(in srgb, var(--theme-accent) 9%, var(--theme-page));
+  --color-inline-code: var(--theme-code);
+  --color-input-border: var(--theme-border);
+  --color-link: var(--theme-link);
+  --color-muted: var(--theme-muted);
+  --color-page: var(--theme-page);
+  --color-pre: var(--theme-code);
+  --color-selected: var(--theme-selected);
+  --color-selection-bg: var(--theme-selection);
+  --color-sidebar: var(--theme-page);
+  --color-success: var(--theme-success);
+  --color-strong-border: color-mix(in srgb, var(--theme-border) 75%, var(--theme-text));
+  --color-tabbar: var(--theme-page);
+  --color-text: var(--theme-text);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-tertiary: var(--theme-muted);
+  --color-warning: var(--theme-warning);
+}
