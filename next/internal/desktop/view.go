@@ -9,9 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
-	"github.com/egoist/mygo/ui/markdown"
 
-	"plainmark/internal/preview"
 	"plainmark/internal/session"
 	"plainmark/internal/workspace"
 )
@@ -41,6 +39,9 @@ func (a *App) view(c *ui.Context) {
 	if root.Shortcut(ui.Cmd, ui.KeyN) && a.store != nil && !a.busy {
 		a.form = &pathForm{operation: "note", path: a.activeFolder}
 	}
+	if d := a.current(); d != nil && d.Tab.Mode == session.Preview && root.Shortcut(ui.Cmd, ui.KeyF) {
+		a.find()
+	}
 	root.Children(func() {
 		ui.Row(c).Padding(8).Gap(8).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 			if ui.Button(c, "Open folder").Key("open-folder").Disabled(a.busy).Clicked() {
@@ -61,9 +62,15 @@ func (a *App) view(c *ui.Context) {
 				ui.Segmented(c, &mode, "Preview", "Edit", "Split").Label("View mode")
 				d.Tab.Mode = session.Mode(mode)
 			}
+			if ui.Button(c, "Find").Disabled(d == nil || a.busy).Clicked() {
+				a.find()
+			}
 			ui.Box(c).Grow(1)
 			ui.Checkbox(c, &a.wrap, "Wrap")
 			ui.MenuButton(c, "More", func(m *ui.Menu) {
+				if m.Item("Encrypt selection").Disabled(a.busy || a.current() == nil).Chosen() {
+					a.beginEncrypt()
+				}
 				if m.Item("Toggle sidebar").Chosen() {
 					a.sidebarVisible = !a.sidebarVisible
 				}
@@ -97,6 +104,7 @@ func (a *App) view(c *ui.Context) {
 		})
 	})
 	a.modals(c)
+	a.cryptoModal(c)
 }
 
 func (a *App) pinned() map[string]bool {
@@ -239,7 +247,7 @@ func (a *App) documentArea(c *ui.Context) {
 						}
 						button := ui.Button(c, label).Label("Tab " + tab.Note.Title).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
 						if button.Clicked() {
-							a.session.Active = tab.Note.Path
+							a.activate(tab.Note.Path)
 						}
 						if drag, ok := ui.Drop[tabDrag](button); ok {
 							a.session.Reorder(drag.Path, tab.Note.Path)
@@ -303,15 +311,6 @@ func (a *App) documentArea(c *ui.Context) {
 			}
 		})
 	})
-}
-func (a *App) preview(c *ui.Context, d *Document) {
-	a.math.Configure(&d.MD, c.Theme().Text, 20)
-	if !d.previewReady || d.previewVersion != d.Code.Buffer.Version() {
-		d.previewVersion = d.Code.Buffer.Version()
-		d.previewSource = preview.Normalize(d.Code.Buffer.String())
-		d.previewReady = true
-	}
-	ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(20).Children(func() { markdown.View(c, d.previewSource, &d.MD).FillWidth() })
 }
 func (a *App) edit(c *ui.Context, d *Document) {
 	d.Code.SoftWrap = a.wrap

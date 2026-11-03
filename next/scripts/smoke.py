@@ -21,7 +21,7 @@ def main():
         process = subprocess.Popen(
             [str(ROOT / "build/plainmark"), str(note)],
             cwd=ROOT,
-            env={**os.environ, "MYGO_AUTOMATION": str(sockpath)},
+            env={**os.environ, "MYGO_AUTOMATION": str(sockpath), "MYGO_LOCALE": "en"},
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
         try:
@@ -117,11 +117,25 @@ def main():
                 overwrite = next(n for n in nodes if n.get("label") == "Overwrite")
                 rpc("act", id=overwrite["id"], action="press")
                 wait_tree(lambda nodes: "Локальный" in note.read_text(encoding="utf-8") and not any(n.get("label") == "Overwrite" for n in nodes), "overwrite did not resolve conflict")
+                fixture = "enc:v1:AAECAwQFBgcICQoLDA0ODw:EBESExQVFhcYGRobHB0eHyAhIiMkJSYn:kjoOIIaoKTbcrT789T4USc1ZP4jD-siNCzoQtC-I0x8dWFRt2OBpKg"
+                note.write_text("# Crypto smoke\n\n```encrypted\n" + fixture + "\n```\n", encoding="utf-8")
+                nodes = wait_tree(lambda nodes: any(n.get("label") == "Unlock encrypted block" for n in nodes), "encrypted preview block missing")
+                unlock = next(n for n in nodes if n.get("label") == "Unlock encrypted block")
+                rpc("act", id=unlock["id"], action="press")
+                rpc("idle", timeout=10000)
+                rpc("act", key="crypto-password", action="setValue", text="archive-pass")
+                rpc("act", key="crypto-submit", action="press")
+                nodes = wait_tree(lambda nodes: any(n.get("label") == "Lock" for n in nodes), "Rust fixture did not unlock in actual window")
+                lock = next(n for n in nodes if n.get("label") == "Lock")
+                assert "# Legacy secret\nold note" in [n.get("label") for n in nodes], "plaintext is not displayed"
+                rpc("act", id=lock["id"], action="press")
+                wait_tree(lambda nodes: not any(n.get("label") == "Lock" for n in nodes), "block did not lock")
+                assert "# Legacy secret" not in note.read_text(encoding="utf-8"), "preview wrote plaintext to file"
                 capture = rpc("capture")
                 output = os.environ.get("PLAINMARK_SMOKE_CAPTURE")
                 if output:
                     Path(output).write_bytes(base64.b64decode(capture["png"]))
-                print("PASS: native window, Unicode, undo/redo, save, live preview, Copy menu, watcher reload, dirty conflict, explicit overwrite and capture")
+                print("PASS: native window, Unicode, undo/redo, save, preview, Copy, watcher, conflict/overwrite, Rust fixture unlock/lock and capture")
         finally:
             process.terminate()
             try:

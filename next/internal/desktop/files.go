@@ -213,6 +213,8 @@ func (a *App) reload(d *Document) {
 			d.Code.Buffer.Reset(n.Markdown)
 			d.Code.Buffer.MarkSaved()
 			d.previewReady = false
+			d.Unlocked = map[string]string{}
+			d.unlockRevision++
 			a.status = "Reloaded " + path
 		}, nil
 	})
@@ -302,7 +304,8 @@ func (a *App) modals(c *ui.Context) {
 						f.value = ""
 					}
 				} else {
-					in := ui.TextInput(c, &f.value).Label("Name").Key("path-name").AutoFocus()
+					c.Key("path-name")
+					in := ui.TextInput(c, &f.value).Label("Name").Disabled(a.busy).AutoFocus()
 					if in.Submitted() && !a.busy && strings.TrimSpace(f.value) != "" {
 						a.submitForm()
 					}

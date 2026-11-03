@@ -15,18 +15,32 @@ import (
 	"github.com/egoist/mygo/ui/markdown/parser"
 
 	"plainmark/internal/mathrender"
+	"plainmark/internal/preview"
 	"plainmark/internal/session"
 	"plainmark/internal/workspace"
 )
 
 type Document struct {
-	Tab            *session.Tab
-	Code           *editor.State
-	MD             markdown.Options
-	Scroll         ui.ScrollState
-	previewVersion uint64
-	previewSource  string
-	previewReady   bool
+	Tab                *session.Tab
+	Code               *editor.State
+	MD                 markdown.Options
+	Scroll             ui.ScrollState
+	previewVersion     uint64
+	previewSource      string
+	previewReady       bool
+	cleanSource        string
+	previewDoc         *parser.Document
+	FindOpen           bool
+	Query              string
+	Match              int
+	Matches            []preview.Match
+	lastQuery          string
+	lastMatch          int
+	searchRevision     uint64
+	scrolledRevision   uint64
+	Unlocked           map[string]string
+	unlockRevision     uint64
+	lastUnlockRevision uint64
 }
 type pendingAction struct {
 	paths  []string
@@ -61,6 +75,7 @@ type App struct {
 	run                 func(func())
 	trash               func(string) error
 	chooseSave          func(string) (string, error)
+	crypto              *cryptoForm
 }
 
 func New() (*App, error) {
@@ -119,6 +134,9 @@ func (a *App) flush() {
 	}
 }
 func (a *App) openTab(n workspace.Note, mode session.Mode) *Document {
+	if a.session.Active != n.Path {
+		a.lockAll()
+	}
 	t := a.session.Open(n, mode)
 	if d := a.docs[t]; d != nil {
 		return d
@@ -126,7 +144,7 @@ func (a *App) openTab(n workspace.Note, mode session.Mode) *Document {
 	b := editor.NewBuffer(n.Markdown)
 	b.SetLanguage(editor.LanguageFor(n.Path))
 	b.MarkSaved()
-	d := &Document{Tab: t, Code: &editor.State{Buffer: b, SoftWrap: true}, MD: markdown.Options{Extensions: parser.Default | parser.ExtDollarMath}}
+	d := &Document{Tab: t, Code: &editor.State{Buffer: b, SoftWrap: true}, MD: markdown.Options{Extensions: parser.Default | parser.ExtDollarMath}, Unlocked: map[string]string{}}
 	a.docs[t] = d
 	return d
 }
@@ -286,7 +304,7 @@ func (a *App) openNote(path, anchor string) {
 	}
 	if t := a.session.Find(path); t != nil {
 		a.flush()
-		a.session.Active = path
+		a.activate(path)
 		if anchor != "" {
 			a.docs[t].MD.Anchor = anchor
 			a.docs[t].MD.AnchorVersion++
@@ -395,6 +413,8 @@ func (a *App) refresh() {
 					d.Code.Buffer.Reset(t.Note.Markdown)
 					d.Code.Buffer.MarkSaved()
 					d.previewReady = false
+					d.Unlocked = map[string]string{}
+					d.unlockRevision++
 				}
 			}
 			a.cleanupDocs()
@@ -437,6 +457,8 @@ func (a *App) saveDocument(d *Document, force bool, done func(error)) {
 		return func() {
 			a.flush()
 			d.Tab.Saved(saved, session.Normalize(submitted))
+			d.Unlocked = map[string]string{}
+			d.unlockRevision++
 			for i := range a.snapshot.Notes {
 				entry := &a.snapshot.Notes[i]
 				if entry.Path == saved.Path {

@@ -21,7 +21,17 @@ func (a *App) syncMenu() {
 		dirty = d.Tab.Dirty()
 		mode = d.Tab.Mode
 	}
-	state := fmt.Sprintf("%t/%t/%s/%t/%d/%d/%t/%s/%t/%t/%t", a.busy, a.store != nil, active, dirty, len(a.session.Tabs), mode, a.sidebarVisible, strings.Join(a.recent, "\x00"), a.pending != nil, a.form != nil, a.deleting != nil)
+	selection := false
+	if d != nil {
+		for _, s := range d.Code.Selections() {
+			if !s.Empty() {
+				selection = true
+				break
+			}
+		}
+	}
+	state := fmt.Sprintf("%t/%t/%s/%t/%d/%d/%t/%s/%t/%t/%t", a.busy, a.store != nil, active, dirty, len(a.session.Tabs), mode, a.sidebarVisible, strings.Join(a.recent, "\x00"), a.pending != nil, a.form != nil, a.deleting != nil || a.crypto != nil)
+	state += fmt.Sprintf("/%t/%t", a.crypto != nil, selection)
 	if state == a.menuState {
 		return
 	}
@@ -35,7 +45,7 @@ func (a *App) installMenu() {
 	d := a.current()
 	hasNote := d != nil
 	dirty := hasNote && d.Tab.Dirty()
-	blocked := a.busy || a.pending != nil || a.form != nil || a.deleting != nil
+	blocked := a.busy || a.pending != nil || a.form != nil || a.deleting != nil || a.crypto != nil
 	item := func(label, key string, disabled bool, fn func()) *mygo.MenuItem {
 		return &mygo.MenuItem{Label: label, Accelerator: key, Disabled: disabled, Click: func(*mygo.MenuItem, *mygo.Window) {
 			if !a.busy {
@@ -72,6 +82,7 @@ func (a *App) installMenu() {
 			}
 		}))
 	}
+	view = append(view, item("Find", "CmdOrCtrl+F", blocked || !hasNote, a.find), item("Encrypt selection", "CmdOrCtrl+Shift+E", blocked || !hasNote || d.Tab.Mode == session.Preview || len(d.Code.Selections()) == 0 || d.Code.Selections()[0].Empty(), a.beginEncrypt))
 	view = append(view, item("Toggle sidebar", "CmdOrCtrl+B", blocked, func() { a.sidebarVisible = !a.sidebarVisible }), item("Refresh", "CmdOrCtrl+R", blocked || a.store == nil, a.refresh))
 	view = append(view, item("Previous tab", "Ctrl+Shift+Tab", blocked || !hasNote, func() { a.cycleTab(-1) }), item("Next tab", "Ctrl+Tab", blocked || !hasNote, func() { a.cycleTab(1) }))
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Label: "File", Submenu: file}, {Role: mygo.RoleEditMenu}, {Label: "View", Submenu: view}, {Role: mygo.RoleWindowMenu}}))
@@ -96,5 +107,5 @@ func (a *App) cycleTab(delta int) {
 		}
 	}
 	index = (index + delta + len(a.session.Tabs)) % len(a.session.Tabs)
-	a.session.Active = a.session.Tabs[index].Note.Path
+	a.activate(a.session.Tabs[index].Note.Path)
 }
