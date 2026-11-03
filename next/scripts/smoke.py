@@ -57,6 +57,17 @@ def main():
                     windows = rpc("windows")["windows"]
                 rpc("idle", timeout=10000)
                 assert len(windows) == 1 and windows[0]["kind"] == "content", windows
+                nodes = rpc("tree")["nodes"]
+                split = next(n for n in nodes if n.get("label") == "Split" and "press" in n.get("actions", []))
+                rpc("act", id=split["id"], action="press")
+                deadline = time.monotonic() + 15
+                while True:
+                    rpc("idle", timeout=10000)
+                    nodes = rpc("tree")["nodes"]
+                    if any(n.get("key") == "editor" and "disabled" not in n.get("states", []) for n in nodes):
+                        break
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("editor did not become ready")
                 rpc("act", key="editor", action="focus")
                 rpc("idle", timeout=10000)
                 rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "# Проверено\n\nFormula $x_i^2$\n"}])
@@ -80,11 +91,37 @@ def main():
                 rpc("act", key="editor", action="selectText", **{"from": 0, "to": 11})
                 rpc("menu", path=["Edit", "Copy"])
                 rpc("idle", timeout=10000)
+
+                def wait_tree(predicate, description):
+                    deadline = time.monotonic() + 15
+                    while True:
+                        rpc("idle", timeout=10000)
+                        nodes = rpc("tree")["nodes"]
+                        if predicate(nodes):
+                            return nodes
+                        if time.monotonic() > deadline:
+                            raise TimeoutError(description)
+                        time.sleep(.02)
+
+                def editor_value(nodes):
+                    return next((n.get("value", "") for n in nodes if n.get("key") == "editor"), "")
+
+                note.write_text("# Внешний\n\nUpdated externally\n", encoding="utf-8")
+                wait_tree(lambda nodes: "Внешний" in editor_value(nodes), "watcher did not reload clean document")
+                rpc("act", key="editor", action="focus")
+                rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "# Локальный\n\nKeep this draft\n"}])
+                rpc("idle", timeout=10000)
+                note.write_text("# Конфликт\n\nExternal conflict\n", encoding="utf-8")
+                nodes = wait_tree(lambda nodes: any(n.get("label") == "File changed on disk. Your draft is kept." for n in nodes), "watcher did not report conflict")
+                assert "Локальный" in editor_value(nodes), "external change destroyed draft"
+                overwrite = next(n for n in nodes if n.get("label") == "Overwrite")
+                rpc("act", id=overwrite["id"], action="press")
+                wait_tree(lambda nodes: "Локальный" in note.read_text(encoding="utf-8") and not any(n.get("label") == "Overwrite" for n in nodes), "overwrite did not resolve conflict")
                 capture = rpc("capture")
                 output = os.environ.get("PLAINMARK_SMOKE_CAPTURE")
                 if output:
                     Path(output).write_bytes(base64.b64decode(capture["png"]))
-                print("PASS: native window, Unicode input, undo/redo, save, live preview, native Copy menu and capture")
+                print("PASS: native window, Unicode, undo/redo, save, live preview, Copy menu, watcher reload, dirty conflict, explicit overwrite and capture")
         finally:
             process.terminate()
             try:

@@ -1,11 +1,12 @@
 # Plainmark Go
 
-Новая реализация Plainmark. Текущий этап: прототип MyGo; полная функциональная замена исходной версии ещё не готова.
+Новая реализация Plainmark. Реализованы workspace, вкладки, файловые операции, watcher и конфликты. Полная функциональная замена исходной версии ещё не готова: расширения просмотра, UI шифрования, настройки и миграция состояния находятся в работе.
 
 Требуется Go 1.27.3 или новее. Node, Rust и cgo для этой реализации не нужны.
 
 ```sh
 go run ./cmd/plainmark ../testdata/workspace/Math.md
+go run ./cmd/plainmark ../testdata/workspace
 go test ./...
 go vet ./...
 go build -o build/plainmark ./cmd/plainmark

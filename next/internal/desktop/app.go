@@ -1,8 +1,11 @@
 package desktop
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/egoist/mygo"
@@ -12,29 +15,52 @@ import (
 	"github.com/egoist/mygo/ui/markdown/parser"
 
 	"plainmark/internal/mathrender"
-	"plainmark/internal/preview"
+	"plainmark/internal/session"
 	"plainmark/internal/workspace"
 )
 
-type App struct {
-	win            *mygo.Window
-	code           *editor.State
-	md             markdown.Options
-	math           *mathrender.Renderer
-	path           string
-	store          *workspace.Workspace
-	note           workspace.Note
-	mode           int
-	wrap           bool
-	busy           bool
-	status         string
-	scroll         ui.ScrollState
-	ratio          float32
-	previewBuffer  *editor.Buffer
+type Document struct {
+	Tab            *session.Tab
+	Code           *editor.State
+	MD             markdown.Options
+	Scroll         ui.ScrollState
 	previewVersion uint64
 	previewSource  string
-	// run dispatches slow work off the UI thread; tests can replace it.
-	run func(func())
+	previewReady   bool
+}
+type pendingAction struct {
+	paths  []string
+	action func()
+}
+type pathForm struct{ operation, path, value string }
+
+type App struct {
+	win                 *mygo.Window
+	math                *mathrender.Renderer
+	store               *workspace.Workspace
+	snapshot            workspace.Snapshot
+	session             session.Session
+	docs                map[*session.Tab]*Document
+	watcher             *workspace.Watcher
+	epoch               uint64
+	refreshNeeded       bool
+	busy                bool
+	status              string
+	wrap                bool
+	ratio, sidebarWidth float32
+	sidebarVisible      bool
+	query, activeFolder string
+	expanded            map[string]*bool
+	pins                map[string]map[string]bool
+	recent              []string
+	pending             *pendingAction
+	form                *pathForm
+	deleting            *workspace.TrashInfo
+	closeAllowed        bool
+	menuState           string
+	run                 func(func())
+	trash               func(string) error
+	chooseSave          func(string) (string, error)
 }
 
 func New() (*App, error) {
@@ -42,22 +68,11 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{math: m, mode: 2, wrap: true, ratio: 50, status: "Open a Markdown file to begin"}
-	a.setDocument("", nil)
-	a.run = func(fn func()) { go fn() }
-	return a, nil
+	return &App{math: m, docs: map[*session.Tab]*Document{}, wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
+		expanded: map[string]*bool{}, pins: map[string]map[string]bool{}, status: "Open a Markdown folder or file to begin",
+		run: func(fn func()) { go fn() }, trash: func(path string) error { return mygo.Shell.TrashItem(path) }}, nil
 }
-
-func (a *App) setDocument(path string, data []byte) {
-	a.path = path
-	b := editor.NewBuffer(string(data))
-	b.SetLanguage(editor.LanguageFor("note.md"))
-	b.MarkSaved()
-	a.code = &editor.State{Buffer: b, SoftWrap: true}
-	a.md = markdown.Options{Extensions: parser.Default | parser.ExtDollarMath}
-	a.scroll = ui.ScrollState{}
-}
-
+func (a *App) current() *Document { return a.docs[a.session.Current()] }
 func (a *App) update(fn func()) {
 	if a.win != nil {
 		a.win.Update(fn)
@@ -66,157 +81,396 @@ func (a *App) update(fn func()) {
 	}
 }
 
-func (a *App) start(fn func() error) {
+// State belongs to the UI thread. Workers capture inputs and return closures
+// applied there; an obsolete workspace generation cannot mutate a new session.
+func (a *App) async(work func() (func(), error)) {
 	if a.busy {
 		return
 	}
 	a.busy = true
+	epoch := a.epoch
 	a.run(func() {
-		err := fn()
+		apply, err := work()
 		a.update(func() {
+			if a.epoch != epoch {
+				return
+			}
 			a.busy = false
 			if err != nil {
 				a.status = err.Error()
 			}
+			if apply != nil {
+				apply()
+			}
+			if a.refreshNeeded && !a.busy {
+				a.refreshNeeded = false
+				a.refresh()
+			}
 		})
 	})
 }
-
-func (a *App) confirmDiscard() bool {
-	var dirty bool
-	a.update(func() { dirty = a.code.Buffer.Modified() })
-	if !dirty {
-		return true
+func (a *App) flush() {
+	for _, d := range a.docs {
+		if d.Code.Buffer.Modified() {
+			d.Tab.Draft = d.Code.Buffer.String()
+		} else {
+			d.Tab.Draft = session.Normalize(d.Tab.Note.Markdown)
+		}
 	}
-	r, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning,
-		Message: "Discard unsaved changes?", Buttons: []string{"Cancel", "Discard"}, CancelButton: 0, DefaultButton: 0, DestructiveButtons: []int{1}})
-	return err == nil && r.Button == 1
+}
+func (a *App) openTab(n workspace.Note, mode session.Mode) *Document {
+	t := a.session.Open(n, mode)
+	if d := a.docs[t]; d != nil {
+		return d
+	}
+	b := editor.NewBuffer(n.Markdown)
+	b.SetLanguage(editor.LanguageFor(n.Path))
+	b.MarkSaved()
+	d := &Document{Tab: t, Code: &editor.State{Buffer: b, SoftWrap: true}, MD: markdown.Options{Extensions: parser.Default | parser.ExtDollarMath}}
+	a.docs[t] = d
+	return d
+}
+func (a *App) setDocument(path string, data []byte) {
+	n := workspace.Note{Path: path, Markdown: string(data), Title: workspace.TitleFor(path, string(data), nil)}
+	a.session = session.Session{}
+	a.docs = map[*session.Tab]*Document{}
+	a.openTab(n, session.Split)
+}
+func (a *App) cleanupDocs() {
+	for t := range a.docs {
+		if a.session.Find(t.Note.Path) != t {
+			delete(a.docs, t)
+		}
+	}
+}
+func (a *App) closeTabs(paths []string) {
+	a.guard(paths, func() { a.session.Close(paths); a.cleanupDocs() })
+}
+func (a *App) allPaths() []string {
+	var paths []string
+	for _, t := range a.session.Tabs {
+		paths = append(paths, t.Note.Path)
+	}
+	return paths
+}
+func (a *App) guard(paths []string, action func()) {
+	if a.busy {
+		return
+	}
+	a.flush()
+	if len(a.session.Dirty(paths)) == 0 {
+		action()
+		return
+	}
+	a.pending = &pendingAction{paths, action}
 }
 
+func resolveInitial(path string) (*workspace.Workspace, workspace.Snapshot, *workspace.Note, error) {
+	full, err := filepath.Abs(path)
+	if err != nil {
+		return nil, workspace.Snapshot{}, nil, err
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return nil, workspace.Snapshot{}, nil, err
+	}
+	root := full
+	if !info.IsDir() {
+		root = filepath.Dir(full)
+		if !workspace.IsMarkdown(full) {
+			return nil, workspace.Snapshot{}, nil, errors.New("Only Markdown files can be opened")
+		}
+	}
+	w, err := workspace.Open(root)
+	if err != nil {
+		return nil, workspace.Snapshot{}, nil, err
+	}
+	s, err := w.Scan()
+	if err != nil {
+		return nil, s, nil, err
+	}
+	var n *workspace.Note
+	if !info.IsDir() {
+		note, err := w.Read(filepath.Base(full))
+		if err != nil {
+			return nil, s, nil, err
+		}
+		n = &note
+	} else if len(s.Notes) > 0 {
+		note, err := w.Read(s.Notes[0].Path)
+		if err != nil {
+			return nil, s, nil, err
+		}
+		n = &note
+	}
+	return w, s, n, nil
+}
+func (a *App) applyWorkspace(w *workspace.Workspace, s workspace.Snapshot, n *workspace.Note) {
+	a.epoch++
+	a.busy = false
+	a.refreshNeeded = false
+	a.store = w
+	a.snapshot = s
+	a.session = session.Session{}
+	a.docs = map[*session.Tab]*Document{}
+	a.activeFolder = ""
+	a.query = ""
+	a.expanded = map[string]*bool{}
+	if a.pins[w.Root()] == nil {
+		a.pins[w.Root()] = map[string]bool{}
+	}
+	recent := []string{w.Root()}
+	for _, p := range a.recent {
+		if p != w.Root() && len(recent) < 5 {
+			recent = append(recent, p)
+		}
+	}
+	a.recent = recent
+	if n != nil {
+		a.openTab(*n, session.Preview)
+	}
+	a.status = "Opened " + w.Root()
+}
+
+// Synchronous initialization before the event loop, and in headless tests.
+func (a *App) load(path string) error {
+	w, s, n, err := resolveInitial(path)
+	if err != nil {
+		return err
+	}
+	a.applyWorkspace(w, s, n)
+	return nil
+}
+func (a *App) switchTo(path string) {
+	a.guard(nil, func() {
+		old := a.watcher
+		watchEnabled := a.win != nil
+		a.async(func() (func(), error) {
+			w, s, n, err := resolveInitial(path)
+			if err != nil {
+				return nil, err
+			}
+			var watch *workspace.Watcher
+			if watchEnabled {
+				watch, err = w.Watch(context.Background())
+				if err != nil {
+					return nil, err
+				}
+			}
+			if old != nil {
+				old.Close()
+			}
+			return func() { a.applyWorkspace(w, s, n); a.attachWatch(w, watch) }, nil
+		})
+	})
+}
+func (a *App) openAbsolute(path string) {
+	full, err := filepath.Abs(path)
+	if err != nil {
+		a.status = err.Error()
+		return
+	}
+	if a.store != nil {
+		rel, err := filepath.Rel(a.store.Root(), full)
+		rel = filepath.ToSlash(rel)
+		if err == nil && workspace.ValidateRelative(rel, false) == nil {
+			a.openNote(rel, "")
+			return
+		}
+	}
+	a.switchTo(full)
+}
+func (a *App) openNote(path, anchor string) {
+	if a.busy || a.store == nil {
+		return
+	}
+	if t := a.session.Find(path); t != nil {
+		a.flush()
+		a.session.Active = path
+		if anchor != "" {
+			a.docs[t].MD.Anchor = anchor
+			a.docs[t].MD.AnchorVersion++
+		}
+		return
+	}
+	w := a.store
+	a.async(func() (func(), error) {
+		n, err := w.Read(path)
+		if err != nil {
+			return nil, err
+		}
+		return func() {
+			d := a.openTab(n, session.Preview)
+			d.MD.Anchor = anchor
+			d.MD.AnchorVersion++
+			a.status = "Opened " + path
+		}, nil
+	})
+}
+func (a *App) chooseFolder() {
+	a.async(func() (func(), error) {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true})
+		if err != nil || len(paths) == 0 {
+			return nil, err
+		}
+		return func() { a.switchTo(paths[0]) }, nil
+	})
+}
 func (a *App) chooseFile() {
-	a.start(func() error {
+	a.async(func() (func(), error) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Filters: []mygo.FileFilter{{Name: "Markdown", Extensions: []string{"md", "mdx"}}}})
 		if err != nil || len(paths) == 0 {
-			return err
+			return nil, err
 		}
-		if !a.confirmDiscard() {
-			return nil
-		}
-		return a.load(paths[0])
+		return func() { a.openAbsolute(paths[0]) }, nil
 	})
 }
 
-func (a *App) load(path string) error {
-	if !workspace.IsMarkdown(path) {
-		return errors.New("Only Markdown files can be opened")
+func (a *App) attachWatch(w *workspace.Workspace, watch *workspace.Watcher) {
+	a.watcher = watch
+	if watch == nil {
+		return
 	}
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	store, err := workspace.Open(filepath.Dir(path))
-	if err != nil {
-		return err
-	}
-	note, err := store.Read(filepath.Base(path))
-	if err != nil {
-		return err
-	}
-	a.update(func() {
-		a.setDocument(path, []byte(note.Markdown))
-		a.store, a.note = store, note
-		a.status = "Opened " + path
+	a.run(func() {
+		for {
+			select {
+			case _, ok := <-watch.Changes:
+				if !ok {
+					return
+				}
+				a.update(func() {
+					if a.store == w {
+						if a.busy {
+							a.refreshNeeded = true
+						} else {
+							a.refresh()
+						}
+					}
+				})
+			case err, ok := <-watch.Errors:
+				if !ok {
+					return
+				}
+				a.update(func() {
+					if a.store == w {
+						a.status = "Watcher: " + err.Error()
+					}
+				})
+			}
+		}
 	})
-	return nil
+}
+func (a *App) refresh() {
+	if a.store == nil {
+		return
+	}
+	if a.busy {
+		a.refreshNeeded = true
+		return
+	}
+	a.flush()
+	w := a.store
+	paths := a.allPaths()
+	a.async(func() (func(), error) {
+		s, err := w.Scan()
+		if err != nil {
+			return nil, err
+		}
+		found := map[string]*workspace.Note{}
+		for _, path := range paths {
+			n, err := w.Read(path)
+			if err == nil {
+				found[path] = &n
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		}
+		return func() {
+			a.flush()
+			a.snapshot = s
+			for _, path := range paths {
+				if a.session.External(path, found[path]) {
+					t := a.session.Find(path)
+					d := a.docs[t]
+					d.Code.Buffer.Reset(t.Note.Markdown)
+					d.Code.Buffer.MarkSaved()
+					d.previewReady = false
+				}
+			}
+			a.cleanupDocs()
+			a.status = "Workspace refreshed"
+		}, nil
+	})
 }
 
 func (a *App) save() {
-	if a.path == "" || a.busy || a.store == nil {
+	if d := a.current(); d != nil {
+		a.saveDocument(d, false, nil)
+	}
+}
+func (a *App) saveDocument(d *Document, force bool, done func(error)) {
+	if a.busy || a.store == nil {
 		return
 	}
-	store, note := a.store, a.note
-	submitted := a.code.Buffer.String()
-	buf := a.code.Buffer
-	a.start(func() error {
-		saved, err := store.Save(note.Path, submitted, note.Revision, false)
+	a.flush()
+	w, n := a.store, d.Tab.Note
+	var content bytes.Buffer
+	_, err := d.Code.Buffer.Snapshot().WriteTo(&content)
+	if err != nil {
+		a.status = err.Error()
+		return
+	}
+	submitted := content.String()
+	a.async(func() (func(), error) {
+		saved, err := w.Save(n.Path, submitted, n.Revision, force)
 		if err != nil {
-			if workspace.IsCode(err, "conflict") {
-				return fmt.Errorf("Conflict: %w", err)
-			}
-			return err
+			return func() {
+				if workspace.IsCode(err, "conflict") || errors.Is(err, os.ErrNotExist) {
+					d.Tab.Conflict = true
+					d.Tab.Removed = errors.Is(err, os.ErrNotExist)
+				}
+				if done != nil {
+					done(err)
+				}
+			}, fmt.Errorf("Save: %w", err)
 		}
-		a.update(func() {
-			a.note = saved
-			if a.code.Buffer == buf && buf.String() == submitted {
-				buf.MarkSaved()
+		return func() {
+			a.flush()
+			d.Tab.Saved(saved, session.Normalize(submitted))
+			for i := range a.snapshot.Notes {
+				entry := &a.snapshot.Notes[i]
+				if entry.Path == saved.Path {
+					entry.Title = saved.Title
+					entry.Headings = saved.Headings
+					entry.ModifiedMS = saved.Revision.ModifiedMS
+					entry.Size = saved.Size
+				}
 			}
-			a.status = "Saved " + a.path
-		})
-		return nil
+			if d.Code.Buffer.String() == session.Normalize(submitted) {
+				d.Code.Buffer.MarkSaved()
+			}
+			a.status = "Saved " + n.Path
+			if done != nil {
+				done(nil)
+			}
+		}, nil
 	})
 }
-
-func (a *App) preview(c *ui.Context) {
-	a.math.Configure(&a.md, c.Theme().Text, 20)
-	if a.previewBuffer != a.code.Buffer || a.previewVersion != a.code.Buffer.Version() {
-		a.previewBuffer, a.previewVersion = a.code.Buffer, a.code.Buffer.Version()
-		a.previewSource = preview.Normalize(a.code.Buffer.String())
+func (a *App) saveGuard(p *pendingAction) {
+	a.flush()
+	dirty := a.session.Dirty(p.paths)
+	if len(dirty) == 0 {
+		a.pending = nil
+		p.action()
+		return
 	}
-	ui.Scroll(c).TrackScroll(&a.scroll).Grow(1).FillWidth().Padding(20).Children(func() {
-		markdown.View(c, a.previewSource, &a.md).FillWidth()
-	})
-}
-
-func (a *App) edit(c *ui.Context) {
-	a.code.SoftWrap = a.wrap
-	editor.View(c, a.code).Key("editor").Label("Markdown editor").Grow(1).FillWidth()
-}
-
-func (a *App) view(c *ui.Context) {
-	t := c.Theme()
-	root := ui.Column(c).Fill()
-	if root.Shortcut(ui.Cmd, ui.KeyS) {
-		a.save()
-	}
-	if root.Shortcut(ui.Cmd, ui.KeyO) {
-		a.chooseFile()
-	}
-	root.Children(func() {
-		ui.Row(c).Padding(8).Gap(8).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			if ui.Button(c, "Open file").Key("open").Disabled(a.busy).Clicked() {
-				a.chooseFile()
-			}
-			if ui.PrimaryButton(c, "Save").Key("save").Disabled(a.path == "" || a.busy || !a.code.Buffer.Modified()).Clicked() {
-				a.save()
-			}
-			ui.Segmented(c, &a.mode, "Preview", "Edit", "Split").Label("View mode")
-			ui.Box(c).Grow(1)
-			ui.Checkbox(c, &a.wrap, "Wrap")
-		})
-		ui.Row(c).Padding(4, 12).Children(func() {
-			label := a.path
-			if label == "" {
-				label = "Untitled"
-			}
-			if a.code.Buffer.Modified() {
-				label += " •"
-			}
-			ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
-		})
-		switch a.mode {
-		case 0:
-			a.preview(c)
-		case 1:
-			a.edit(c)
-		default:
-			ui.SplitPercent(c, &a.ratio, func() { a.edit(c) }, func() { a.preview(c) }).Grow(1).FillWidth()
+	d := a.docs[dirty[0]]
+	a.saveDocument(d, false, func(err error) {
+		if err == nil {
+			a.saveGuard(p)
+		} else {
+			a.pending = nil
 		}
-		ui.Row(c).Padding(4, 12).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-			ui.Text(c, a.status).Key("status").FontSize(12).TextColor(t.TextMuted)
-			ui.Box(c).Grow(1)
-			p := a.code.CursorPos()
-			ui.Text(c, fmt.Sprintf("Ln %d, Col %d", p.Line+1, p.Col+1)).FontSize(12)
-		})
 	})
 }
 
@@ -232,29 +486,47 @@ func Run(path string) error {
 	}
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "Plainmark — Go", Width: 1220, Height: 820, MinWidth: 880, MinHeight: 620, Content: ui.View(a.view)})
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu},
-			{Label: "File", Submenu: []*mygo.MenuItem{
-				{Label: "Open file…", Accelerator: "CmdOrCtrl+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.chooseFile() }},
-				{Label: "Save", Accelerator: "CmdOrCtrl+S", Click: func(*mygo.MenuItem, *mygo.Window) { a.save() }},
-			}},
-			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
-		}))
+		a.installMenu()
+		if a.store != nil {
+			w := a.store
+			a.async(func() (func(), error) {
+				watch, err := w.Watch(context.Background())
+				return func() { a.attachWatch(w, watch) }, err
+			})
+		}
 		a.win.OnClose(func(e *mygo.CloseEvent) {
+			if a.closeAllowed {
+				return
+			}
 			if a.busy {
 				e.PreventDefault()
 				return
 			}
-			if a.code.Buffer.Modified() {
+			a.flush()
+			if len(a.session.Dirty(nil)) > 0 {
 				e.PreventDefault()
-				a.start(func() error {
-					if a.confirmDiscard() {
-						a.update(func() { a.code.Buffer.MarkSaved(); a.busy = false; a.win.Close() })
-					}
-					return nil
-				})
+				a.guard(nil, func() { a.closeAllowed = true; a.win.Close() })
 			}
 		})
+		mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+			if a.closeAllowed {
+				return
+			}
+			if a.busy {
+				e.PreventDefault()
+				return
+			}
+			a.flush()
+			if len(a.session.Dirty(nil)) > 0 {
+				e.PreventDefault()
+				a.guard(nil, func() { a.closeAllowed = true; mygo.App.Quit() })
+			}
+		})
+	})
+	mygo.App.OnQuit(func() {
+		if a.watcher != nil {
+			a.watcher.Close()
+		}
 	})
 	return mygo.App.Run()
 }
