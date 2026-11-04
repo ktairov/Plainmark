@@ -34,10 +34,12 @@ type RootState struct {
 	SelectedFolder string      `json:"selectedFolder,omitempty"`
 }
 type WindowState struct {
-	X      int `json:"x"`
-	Y      int `json:"y"`
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	X          int  `json:"x"`
+	Y          int  `json:"y"`
+	Width      int  `json:"width"`
+	Height     int  `json:"height"`
+	Maximized  bool `json:"maximized,omitempty"`
+	FullScreen bool `json:"fullScreen,omitempty"`
 }
 type State struct {
 	Version        int                  `json:"version"`

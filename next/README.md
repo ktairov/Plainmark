@@ -36,6 +36,7 @@ python3 scripts/lifecycle.py
 python3 scripts/settings_ui.py
 python3 scripts/navigation.py
 python3 scripts/menu_ui.py
+python3 scripts/restoration.py
 ```
 
 Снимки светлого и тёмного просмотра:

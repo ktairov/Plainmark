@@ -42,6 +42,7 @@ type Document struct {
 	Unlocked           map[string]string
 	unlockRevision     uint64
 	lastUnlockRevision uint64
+	pendingEditorY     *float64
 }
 type pendingAction struct {
 	paths  []string
@@ -91,6 +92,7 @@ type App struct {
 	saved               settings.State
 	writer              *settings.Writer
 	stateFingerprint    string
+	windowStateLoaded   bool
 	pendingFiles        []string
 }
 
@@ -560,6 +562,7 @@ func Run(path string) error {
 		locale = ""
 	}
 	mygo.App.SetLocale(locale)
+	mygo.App.SetWindowStateStore(a)
 	a.nativeLocale = a.preferences.Language
 	mygo.App.OnOpenFile(func(path string) { a.update(func() { a.pendingFiles = append(a.pendingFiles, path); a.pumpFiles() }) })
 	mygo.App.WhenReady(func() {
@@ -571,8 +574,6 @@ func Run(path string) error {
 		a.win = mygo.NewWindow(options)
 		a.installMenu()
 		a.watchStateErrors()
-		a.win.OnResize(a.rememberWindow)
-		a.win.OnMove(a.rememberWindow)
 		if a.store != nil {
 			w := a.store
 			a.async(func() (func(), error) {
@@ -594,7 +595,6 @@ func Run(path string) error {
 			e.PreventDefault()
 			a.requestQuit()
 		})
-		a.rememberWindow()
 		a.pumpFiles()
 	})
 	mygo.App.OnQuit(func() {

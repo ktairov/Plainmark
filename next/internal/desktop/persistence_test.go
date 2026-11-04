@@ -2,11 +2,14 @@ package desktop
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"plainmark/internal/session"
 	"plainmark/internal/settings"
@@ -53,6 +56,115 @@ func TestOwnStateRestoresTabsPreferencesAndLayoutWithoutDocumentData(t *testing.
 	}
 	if b.current().Code.Buffer.String() != "# Second\nText" || b.current().Tab.Dirty() || len(b.current().Unlocked) != 0 {
 		t.Fatal("restoration did not read disk independently")
+	}
+}
+
+func TestTabModesAndBothScrollPositionsSurviveRestart(t *testing.T) {
+	a, root := workspaceApp(t)
+	long := "# Long note\n\n" + strings.Repeat("Paragraph with enough text to scroll.\n\n", 180)
+	for _, path := range []string{"a.md", "b.md"} {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(long), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.reload(a.current())
+	first := a.current()
+	tt := ui.NewTester(a.view, 1100, 760)
+	tt.Frame()
+	if tt.HasText("Ln 1, Col 1") {
+		t.Fatal("cursor position is visible in preview")
+	}
+	tt.Scroll(850, 400, 0, 1250)
+	tt.Frame()
+	if first.Scroll.Y < 500 {
+		t.Fatal("preview did not scroll")
+	}
+	first.Tab.Mode = session.Edit
+	tt.Frame()
+	if !tt.HasText("Ln 1, Col 1") {
+		t.Fatal("cursor position is hidden in editor")
+	}
+	first.Code.GoTo(editor.Pos{Line: 70, Col: 3})
+	tt.Frame()
+	first.Code.SetScrollY(950)
+	tt.Frame()
+	a.openNote("b.md", "")
+	second := a.current()
+	second.Tab.Mode = session.Split
+	tt.Frame()
+	second.Code.SetScrollY(710)
+	second.Scroll.Y = 840
+	tt.Frame()
+	data, err := a.captureState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var expected settings.State
+	if err = json.Unmarshal(data, &expected); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err = settings.Save(path, data); err != nil {
+		t.Fatal(err)
+	}
+	b, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = b.readState(path); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.load(root); err != nil {
+		t.Fatal(err)
+	}
+	restored := ui.NewTester(b.view, 1100, 760)
+	restored.Frame()
+	restored.Frame()
+	for _, saved := range expected.Roots[root].Tabs {
+		b.activate(saved.Path)
+		restored.Frame()
+		restored.Frame()
+		d := b.current()
+		if d.Tab.Mode != modeValue(saved.Mode) {
+			t.Fatalf("%s: mode changed", saved.Path)
+		}
+		if d.pendingEditorY != nil || math.Abs(d.Code.ScrollY()-saved.EditorY) > 2 {
+			t.Fatalf("%s: editor scroll got %v want %v", saved.Path, d.Code.ScrollY(), saved.EditorY)
+		}
+		if math.Abs(float64(d.Scroll.Y-saved.PreviewY)) > 2 {
+			t.Fatalf("%s: preview scroll got %v want %v", saved.Path, d.Scroll.Y, saved.PreviewY)
+		}
+	}
+	b.current().Tab.Mode = session.Preview
+	restored.Frame()
+	if restored.HasText(b.positionText(b.current().Code.CursorPos().Line+1, b.current().Code.CursorPos().Col+1)) {
+		t.Fatal("preview shows line/column")
+	}
+}
+
+func TestNativeWindowStateUsesOwnStoreAndFlushes(t *testing.T) {
+	a, _ := workspaceApp(t)
+	states, err := a.LoadWindowStates()
+	if err != nil || states != nil {
+		t.Fatal("fresh window should use centered defaults")
+	}
+	path := filepath.Join(t.TempDir(), "state.json")
+	a.writer = settings.NewWriter(path)
+	defer a.writer.Close()
+	want := mygo.WindowState{X: 0, Y: 0, Width: 1040, Height: 720, Maximized: true}
+	if err = a.SaveWindowStates(map[string]mygo.WindowState{"main": want}); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := New()
+	if err = b.readState(path); err != nil {
+		t.Fatal(err)
+	}
+	states, err = b.LoadWindowStates()
+	if err != nil || states["main"] != want || b.windowOptions().StateKey != "main" {
+		t.Fatal("window geometry/mode did not survive own store", states, err)
 	}
 }
 

@@ -41,7 +41,11 @@ func (a *App) rememberRoot() {
 	for _, tab := range a.session.Tabs {
 		d := a.docs[tab]
 		pos := d.Code.CursorPos()
-		r.Tabs = append(r.Tabs, settings.StoredTab{Path: tab.Note.Path, Mode: modeName(tab.Mode), PreviewY: d.Scroll.Y, EditorY: d.Code.ScrollY(), CursorLine: pos.Line, CursorColumn: pos.Col})
+		editorY := d.Code.ScrollY()
+		if d.pendingEditorY != nil {
+			editorY = *d.pendingEditorY
+		}
+		r.Tabs = append(r.Tabs, settings.StoredTab{Path: tab.Note.Path, Mode: modeName(tab.Mode), PreviewY: d.Scroll.Y, EditorY: editorY, CursorLine: pos.Line, CursorColumn: pos.Col})
 	}
 	for p, on := range a.pinned() {
 		if on {
@@ -93,6 +97,7 @@ func (a *App) readState(path string) error {
 		return err
 	}
 	a.saved = s
+	a.windowStateLoaded = err == nil
 	a.preferences = s.Preferences
 	a.recent = append([]string(nil), s.Recent...)
 	a.sidebarVisible, a.sidebarWidth, a.ratio, a.wrap = s.SidebarVisible, s.SidebarWidth, s.SplitPercent, s.Wrap
@@ -118,33 +123,31 @@ func (a *App) watchStateErrors() {
 }
 func (a *App) windowOptions() mygo.WindowOptions {
 	b := a.saved.Window
-	visible := false
-	for _, display := range mygo.Screen.Displays() {
-		r := display.WorkArea
-		if b.X < r.X+r.Width && b.Y < r.Y+r.Height && b.X+b.Width > r.X && b.Y+b.Height > r.Y {
-			visible = true
-			break
-		}
-	}
-	if !visible {
-		b.X, b.Y = 0, 0
-	}
-	return mygo.WindowOptions{Title: "Plainmark Go", Width: b.Width, Height: b.Height, X: b.X, Y: b.Y, MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44, TrafficLightPosition: &mygo.Point{X: 12, Y: 14}}
+	return mygo.WindowOptions{Title: "Plainmark Go", Width: b.Width, Height: b.Height, StateKey: "main", MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44, TrafficLightPosition: &mygo.Point{X: 12, Y: 14}}
 }
-func (a *App) rememberWindow() {
-	if a.win == nil || a.win.IsFullScreen() || a.win.IsMaximized() {
-		return
+
+// MyGo captures settled normal bounds and window mode before OnQuit. Keep its
+// state in the same atomic writer as the session, flushed by OnQuit afterwards.
+func (a *App) LoadWindowStates() (map[string]mygo.WindowState, error) {
+	if !a.windowStateLoaded {
+		return nil, nil
 	}
-	b := a.win.Bounds()
-	a.saved.Window = settings.WindowState{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height}
-	a.persistState()
+	return map[string]mygo.WindowState{"main": mygo.WindowState(a.saved.Window)}, nil
+}
+func (a *App) SaveWindowStates(states map[string]mygo.WindowState) error {
+	if state, ok := states["main"]; ok {
+		a.saved.Window = settings.WindowState(state)
+		a.windowStateLoaded = true
+		a.persistState()
+	}
+	return nil
 }
 func (a *App) requestQuit() {
 	a.update(func() {
 		if a.busy {
 			return
 		}
-		a.guard(nil, func() { a.closeAllowed = true; a.rememberWindow(); a.persistState(); mygo.App.Quit() })
+		a.guard(nil, func() { a.closeAllowed = true; a.persistState(); mygo.App.Quit() })
 	})
 }
 func (a *App) pumpFiles() {
@@ -201,7 +204,8 @@ func (a *App) restoreRoot(loaded loadedWorkspace) {
 			d := a.openTab(note, modeValue(tab.Mode))
 			d.Scroll.Y = tab.PreviewY
 			d.Code.GoTo(editor.Pos{Line: tab.CursorLine, Col: tab.CursorColumn})
-			d.Code.SetScrollY(tab.EditorY)
+			y := tab.EditorY
+			d.pendingEditorY = &y
 		}
 		if a.session.Find(loaded.rootState.Active) != nil {
 			a.activate(loaded.rootState.Active)

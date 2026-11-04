@@ -54,7 +54,7 @@ func (a *App) view(c *ui.Context) {
 		ui.Row(c).Padding(4, 12).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
 			ui.Text(c, a.displayStatus()).Key("status").FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
-			if d := a.current(); d != nil {
+			if d := a.current(); d != nil && d.Tab.Mode != session.Preview {
 				p := d.Code.CursorPos()
 				ui.Text(c, a.positionText(p.Line+1, p.Col+1)).FontSize(12)
 			}
@@ -269,7 +269,15 @@ func (a *App) documentArea(c *ui.Context) {
 func (a *App) edit(c *ui.Context, d *Document) {
 	d.Code.SoftWrap = a.wrap
 	d.Code.Font = ui.Font{Family: settings.Font("mono"), Size: float32(a.preferences.ContentFontSize)}
-	editor.View(c, d.Code).Key("editor").Label(a.t("Markdown editor")).Disabled(a.busy).Grow(1).FillWidth()
+	c.Key("editor")
+	view := editor.View(c, d.Code).Label(a.t("Markdown editor")).Disabled(a.busy).Grow(1).FillWidth()
+	if d.pendingEditorY != nil {
+		if view.Bounds().W > 0 && view.Bounds().H > 0 {
+			d.Code.SetScrollY(*d.pendingEditorY)
+			d.pendingEditorY = nil
+		}
+		c.After(0)
+	}
 }
 
 func (a *App) tabs(c *ui.Context) ui.Element {

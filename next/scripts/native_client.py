@@ -14,7 +14,7 @@ class NativeApp:
         self.log = (self.directory / "app.log").open("wb")
         env = {**os.environ, "MYGO_AUTOMATION": str(self.socket_path), "MYGO_LOCALE": "en", "PLAINMARK_CONFIG_DIR": str(config)}
         env.pop("NOTES_ROOT", None)
-        self.process = subprocess.Popen([str(binary)] + ([str(path)] if path else []), cwd=cwd, env=env, stdout=self.log, stderr=subprocess.STDOUT)
+        self.process = subprocess.Popen([str(binary)] + ([str(path)] if path else []), cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=self.log, stderr=subprocess.STDOUT)
         self.client = None
         self.stream = None
         self.request_id = 0
@@ -67,6 +67,10 @@ class NativeApp:
         self.rpc("input", events=[{"type": "click", "x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2, "mods": mods or []}])
         self.rpc("idle", timeout=10000)
 
+    def window_command(self, **command):
+        self.process.stdin.write((json.dumps(command) + "\n").encode())
+        self.process.stdin.flush()
+
     def quit(self, label="Quit Plainmark"):
         try:
             self.menu("Plainmark Go", label)
@@ -87,4 +91,6 @@ class NativeApp:
             self.stream.close()
         if self.client:
             self.client.close()
+        if self.process.stdin:
+            self.process.stdin.close()
         self.log.close()
