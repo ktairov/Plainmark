@@ -129,7 +129,7 @@ func (a *App) windowOptions() mygo.WindowOptions {
 	if !visible {
 		b.X, b.Y = 0, 0
 	}
-	return mygo.WindowOptions{Title: "Plainmark Go", Width: b.Width, Height: b.Height, X: b.X, Y: b.Y, MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHiddenInset, TitleBarHeight: 44}
+	return mygo.WindowOptions{Title: "Plainmark Go", Width: b.Width, Height: b.Height, X: b.X, Y: b.Y, MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44, TrafficLightPosition: &mygo.Point{X: 12, Y: 14}}
 }
 func (a *App) rememberWindow() {
 	if a.win == nil || a.win.IsFullScreen() || a.win.IsMaximized() {

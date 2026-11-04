@@ -57,7 +57,7 @@ func (a *App) preview(c *ui.Context, d *Document) {
 		ui.FindBar(c, &d.FindOpen, &d.Query, len(d.Matches), &d.Match)
 		d.preparePreview()
 		a.math.Configure(&d.MD, c.Theme().Text, float32(a.preferences.ContentFontSize)*1.25)
-		d.MD.Theme = &markdown.Theme{FontSize: float32(a.preferences.ContentFontSize), Font: settings.Font(a.preferences.ReadingFont), Mark: c.Theme().Accent.Alpha(.3)}
+		d.MD.Theme = a.readingTheme(c.Theme())
 		if a.store != nil {
 			d.MD.LoadImage = markdown.FileImages(filepath.Join(a.store.Root(), filepath.FromSlash(parent(d.Tab.Note.Path))))
 		}
@@ -76,7 +76,7 @@ func (a *App) preview(c *ui.Context, d *Document) {
 				d.MD.AnchorVersion++
 				return
 			}
-			a.openNote(path, anchor)
+			a.navigateNote(path, anchor, c.Modifiers()&(ui.Cmd|ui.Ctrl) != 0)
 		}
 		active := -1
 		if d.Tab.Mode == session.Split {
@@ -112,11 +112,38 @@ func (a *App) preview(c *ui.Context, d *Document) {
 				})
 			})
 		}
-		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(20).Children(func() {
+		width, _ := c.Size()
+		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(24, min(float32(80), width*.07), 80).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(float32(a.preferences.PreviewWidth)).AlignSelf(ui.Center).Children(func() { markdown.View(c, d.previewSource, &d.MD).FillWidth() })
 		})
 		d.scrolledRevision = d.searchRevision
 	})
+}
+
+func (a *App) readingTheme(theme *ui.Theme) *markdown.Theme {
+	id := a.preferences.DayTheme
+	if theme.Dark {
+		id = a.preferences.NightTheme
+	}
+	palette := settings.Themes[id].Light
+	if theme.Dark {
+		palette = settings.Themes[id].Dark
+	}
+	reading := markdown.DefaultTheme(theme)
+	reading.FontSize = float32(a.preferences.ContentFontSize)
+	reading.Font = settings.Font(a.preferences.ReadingFont)
+	reading.LineHeight = 1.65
+	reading.Link = ui.Hex(palette.Link)
+	reading.Muted = ui.Hex(palette.Muted)
+	reading.CodeBackground = ui.Hex(palette.Code)
+	reading.CodeBlockBackground = ui.Hex(palette.Code)
+	reading.CodeBlockBorder = ui.Hex(palette.Border).Mix(theme.Background, .35)
+	reading.CodeBlockRadius = 6
+	reading.Mark = theme.Accent.Alpha(.3)
+	for i := 0; i < 3; i++ {
+		reading.Headings[i].Color = ui.Hex(palette.Heading)
+	}
+	return reading
 }
 func searchSpans(text, query string, theme *ui.Theme) []ui.Span {
 	if query == "" {

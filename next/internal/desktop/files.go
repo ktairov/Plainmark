@@ -23,7 +23,7 @@ func (a *App) pathMenu(m *ui.Menu, path string, folder bool) {
 		}
 	} else {
 		if m.Item(a.t("Open")).Disabled(a.busy).Chosen() {
-			a.openNote(path, "")
+			a.navigateNote(path, "", false)
 		}
 		if m.Item(a.t("Pinned")).Checked(a.pinned()[path]).Chosen() {
 			a.pinned()[path] = !a.pinned()[path]

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"plainmark/internal/session"
 	"plainmark/internal/workspace"
 )
@@ -31,6 +32,47 @@ func workspaceApp(t *testing.T) (*App, string) {
 		t.Fatal(err)
 	}
 	return a, root
+}
+
+func TestSidebarClickReplacesAndCommandClickAddsTab(t *testing.T) {
+	a, _ := workspaceApp(t)
+	first := a.current()
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	if err := tt.Click("Second"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(a.session.Tabs) != 1 || a.session.Active != "b.md" || a.docs[first.Tab] != nil {
+		t.Fatal("plain click did not replace and release the clean tab")
+	}
+	if err := tt.ClickWith(ui.Cmd, "First"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(a.session.Tabs) != 2 || a.session.Active != "a.md" {
+		t.Fatal("Cmd-click did not add a tab")
+	}
+	if err := tt.ClickWith(ui.Cmd, "First"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.session.Tabs) != 2 {
+		t.Fatal("Cmd-click duplicated an existing tab")
+	}
+	draft := a.current()
+	draft.Code.Buffer.Edit(editor.Edit{Start: 0, End: draft.Code.Buffer.Len(), Text: "Unsaved draft"})
+	a.query = "Child"
+	tt.Frame()
+	if err := tt.Click("Child"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.session.Tabs) != 3 || a.session.Active != "folder/child.md" || draft.Code.Buffer.String() != "Unsaved draft" || a.docs[draft.Tab] != draft {
+		t.Fatal("plain navigation lost a dirty tab")
+	}
+	a.navigateNote("missing.md", "", false)
+	if a.session.Active != "folder/child.md" || len(a.session.Tabs) != 3 {
+		t.Fatal("failed read removed the current tab")
+	}
 }
 func TestTabsKeepBuffersAndUndo(t *testing.T) {
 	a, _ := workspaceApp(t)

@@ -24,7 +24,7 @@ def main():
         app = NativeApp(binary, first, config, path=notes, cwd=base)
         try:
             app.wait(lambda: any(n.get("key") == "note:b.md" for n in app.tree()), "sidebar note missing")
-            app.rpc("act", key="note:b.md", action="press")
+            app.click("note:b.md", ["cmd"])
             app.wait(lambda: any(n.get("label") == "Tab Second" and "checked" in n.get("states", []) for n in app.tree()), "second tab did not activate")
             app.menu("View", "Edit")
             app.wait(lambda: any(n.get("key") == "editor" for n in app.tree()), "editor did not open")

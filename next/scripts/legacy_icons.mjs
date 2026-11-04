@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = path.resolve(root, "../node_modules/lucide-react");
 const target = path.join(root, "internal/icons");
-const names = ["panel-left-close", "panel-left-open", "folder-open", "folder", "folder-plus", "file-plus-2", "file-text", "eye", "pencil-line", "columns-2", "sun", "moon", "search", "save", "ellipsis", "x", "pin", "settings", "lock-keyhole", "type", "palette", "languages", "check"];
+const names = ["panel-left-close", "panel-left-open", "folder-open", "folder", "folder-plus", "file-plus-2", "file-text", "eye", "pencil-line", "columns-2", "sun", "moon", "search", "save", "ellipsis", "x", "pin", "settings", "lock-keyhole", "type", "palette", "languages", "check", "chevron-down", "plus"];
 fs.mkdirSync(path.join(target, "svg"), { recursive: true });
 const escape = text => String(text).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 for (const name of names) {

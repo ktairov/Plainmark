@@ -52,7 +52,7 @@ func TestNoteLinksAndMetadata(t *testing.T) {
 	if strings.Contains(a.current().previewSource, "Hidden metadata") || strings.Contains(a.current().previewSource, "private") {
 		t.Fatal("metadata visible")
 	}
-	if err := tt.Click("Child"); err != nil {
+	if err := tt.ClickWith(ui.Cmd, "Child"); err != nil {
 		t.Fatal(err)
 	}
 	if a.current().Tab.Note.Path != "folder/child.md" {
@@ -64,6 +64,25 @@ func TestNoteLinksAndMetadata(t *testing.T) {
 	}
 	if len(a.session.Tabs) != 2 {
 		t.Fatal("link did not keep previous tab")
+	}
+}
+
+func TestPlainNoteLinkReplacesCurrentTab(t *testing.T) {
+	a, root := workspaceApp(t)
+	if err := os.WriteFile(filepath.Join(root, "a.md"), []byte("# First\n\n[Go](b.md)"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.reload(a.current())
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	link, ok := tt.Find("Go")
+	if !ok {
+		t.Fatal("note link missing")
+	}
+	tt.ClickAt(link.X+5, link.Y+link.H/2)
+
+	if a.session.Active != "b.md" || len(a.session.Tabs) != 1 {
+		t.Fatalf("ordinary note link: active=%s count=%d status=%s", a.session.Active, len(a.session.Tabs), a.status)
 	}
 }
 func TestEncryptedBlockUnlockLockAndNavigation(t *testing.T) {

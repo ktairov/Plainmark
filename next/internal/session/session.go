@@ -43,12 +43,28 @@ func (s *Session) Find(path string) *Tab {
 }
 func (s *Session) Current() *Tab { return s.Find(s.Active) }
 func (s *Session) Open(n workspace.Note, mode Mode) *Tab {
+	return s.Navigate(n, mode, true)
+}
+
+// Navigate replaces the current clean tab for ordinary navigation. Keep dirty
+// buffers open, and activate an existing tab without duplicating it.
+func (s *Session) Navigate(n workspace.Note, mode Mode, newTab bool) *Tab {
 	if t := s.Find(n.Path); t != nil {
 		s.Active = n.Path
 		return t
 	}
 	t := &Tab{Note: n, Draft: Normalize(n.Markdown), Mode: mode}
-	s.Tabs = append(s.Tabs, t)
+	previous := s.Current()
+	if !newTab && previous != nil && !previous.Dirty() {
+		for i, tab := range s.Tabs {
+			if tab == previous {
+				s.Tabs[i] = t
+				break
+			}
+		}
+	} else {
+		s.Tabs = append(s.Tabs, t)
+	}
 	s.Active = n.Path
 	return t
 }

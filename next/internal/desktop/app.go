@@ -64,6 +64,7 @@ type App struct {
 	wrap                bool
 	ratio, sidebarWidth float32
 	sidebarVisible      bool
+	lastVisibleTab      *session.Tab
 	query, activeFolder string
 	expanded            map[string]*bool
 	pins                map[string]map[string]bool
@@ -97,7 +98,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), saved: settings.NewState(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
+	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), saved: settings.NewState(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 340, sidebarVisible: true,
 		expanded: map[string]*bool{}, pins: map[string]map[string]bool{}, status: "Open a Markdown folder or file to begin",
 		run: func(fn func()) { go fn() }, trash: func(path string) error { return mygo.Shell.TrashItem(path) }}, nil
 }
@@ -150,10 +151,17 @@ func (a *App) flush() {
 	}
 }
 func (a *App) openTab(n workspace.Note, mode session.Mode) *Document {
+	return a.openTabIn(n, mode, true)
+}
+func (a *App) openTabIn(n workspace.Note, mode session.Mode, newTab bool) *Document {
 	if a.session.Active != n.Path {
 		a.lockAll()
 	}
-	t := a.session.Open(n, mode)
+	previous := a.session.Current()
+	t := a.session.Navigate(n, mode, newTab)
+	if previous != nil && a.session.Find(previous.Note.Path) == nil {
+		delete(a.docs, previous)
+	}
 	if d := a.docs[t]; d != nil {
 		return d
 	}
@@ -316,6 +324,9 @@ func (a *App) openAbsolute(path string) {
 	a.switchTo(full)
 }
 func (a *App) openNote(path, anchor string) {
+	a.navigateNote(path, anchor, true)
+}
+func (a *App) navigateNote(path, anchor string, newTab bool) {
 	if a.busy || a.store == nil {
 		return
 	}
@@ -328,6 +339,8 @@ func (a *App) openNote(path, anchor string) {
 		}
 		return
 	}
+	a.flush()
+	previous := a.current()
 	w := a.store
 	a.async(func() (func(), error) {
 		n, err := w.Read(path)
@@ -335,7 +348,8 @@ func (a *App) openNote(path, anchor string) {
 			return nil, err
 		}
 		return func() {
-			d := a.openTab(n, session.Preview)
+			a.flush()
+			d := a.openTabIn(n, session.Preview, newTab || a.current() != previous)
 			d.MD.Anchor = anchor
 			d.MD.AnchorVersion++
 			a.status = "Opened " + path

@@ -91,24 +91,17 @@ func (a *App) matches(n workspace.Entry) bool {
 func (a *App) sidebar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().FontSize(float32(a.preferences.TreeFontSize)).Background(t.Background).Children(func() {
-		search := ui.SearchField(c, &a.query).Key("note-search").Label(a.t("Search notes")).Placeholder(a.t("Search notes")).Margin(8)
+		c.Key("note-search")
+		search := ui.SearchField(c, &a.query).Label(a.t("Search notes")).Placeholder(a.t("Search notes")).Height(34).Margin(16, 16, 12, 16)
 		if a.focusSearch {
 			search.Focus()
 			a.focusSearch = false
 		}
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Grow(1).FillWidth().Padding(0, 10, 16, 10).Children(func() {
 			if a.store == nil {
 				return
 			}
-			root := ui.ButtonBase(c).Key("workspace-root").Label(filepath.Base(a.store.Root())).FillWidth().Height(30).Padding(0, 12).Gap(8).Justify(ui.Start).Children(func() {
-				ui.Icon(c, icons.Get("folder-open")).Size(16, 16).TextColor(t.TextMuted)
-				ui.Text(c, filepath.Base(a.store.Root())).Bold().SingleLine().Ellipsis("…")
-			})
-			if root.Clicked() {
-				a.activeFolder = ""
-			}
-			root.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
-			a.dropFolder(root, "")
+
 			var pinned []workspace.Entry
 			for _, n := range a.snapshot.Notes {
 				if a.pinned()[n.Path] && a.matches(n) {
@@ -122,6 +115,15 @@ func (a *App) sidebar(c *ui.Context) {
 					a.noteRow(c, n, true)
 				}
 			}
+			root := ui.ButtonBase(c).Key("workspace-root").Label(filepath.Base(a.store.Root())).FillWidth().Height(30).Padding(0, 12).Gap(8).Justify(ui.Start).Children(func() {
+				ui.Icon(c, icons.Get("folder-open")).Size(16, 16).TextColor(t.TextMuted)
+				ui.Text(c, filepath.Base(a.store.Root())).Bold().SingleLine().Ellipsis("…")
+			})
+			if root.Clicked() {
+				a.activeFolder = ""
+			}
+			root.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
+			a.dropFolder(root, "")
 			ui.Tree(c, func() { a.folderChildren(c, "") }).FillWidth()
 		})
 	})
@@ -167,8 +169,8 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 				icon = "folder-open"
 			}
 			ui.Icon(c, icons.Get(icon)).Size(14, 14).TextColor(c.Theme().TextMuted)
-			ui.Text(c, f.Name).SingleLine().Ellipsis("…")
-		}).Gap(6).Selected(a.activeFolder == f.Path).Drag(fileDrag{f.Path})
+			ui.Text(c, f.Name).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+		}).Gap(7).Height(32).Radius(6).Selected(a.activeFolder == f.Path).Drag(fileDrag{f.Path})
 		if a.activeFolder == f.Path {
 			row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
 		}
@@ -196,13 +198,13 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	} else {
 		row = ui.TreeItem(c, "", nil, nil).Selected(a.session.Active == n.Path)
 	}
-	row.Label(n.Title).Gap(6).Children(func() {
+	row.Label(n.Title).Gap(7).Height(32).Radius(6).Children(func() {
 		name := "file-text"
 		if pinned {
 			name = "pin"
 		}
 		ui.Icon(c, icons.Get(name)).Size(14, 14).TextColor(c.Theme().TextMuted)
-		ui.Text(c, n.Title).SingleLine().Ellipsis("…")
+		ui.Text(c, n.Title).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 	})
 	if a.session.Active == n.Path {
 		row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
@@ -210,7 +212,7 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	row.Tooltip(n.Path).Disabled(a.busy).Drag(fileDrag{n.Path})
 	if row.Clicked() {
 		a.activeFolder = n.Folder
-		a.openNote(n.Path, "")
+		a.navigateNote(n.Path, "", row.ClickModifiers()&(ui.Cmd|ui.Ctrl) != 0)
 	}
 	row.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, n.Path, false) })
 }
@@ -225,61 +227,12 @@ func (a *App) dropFolder(row ui.Element, path string) {
 
 func (a *App) documentArea(c *ui.Context) {
 	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-		ui.ScrollHorizontal(c).FillWidth().Shrink(0).Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Row(c).Gap(4).Padding(5, 8).Children(func() {
-				for _, tab := range slices.Clone(a.session.Tabs) {
-					tabRow := ui.Row(c).Key(tab).Drag(tabDrag{tab.Note.Path}).AlignItems(ui.Center).Radius(6)
-					if a.session.Active == tab.Note.Path {
-						tabRow.Background(c.Theme().Surface).Border(1, c.Theme().Border)
-					}
-					tabRow.Children(func() {
-						label := tab.Note.Title
-						if tab.Dirty() {
-							label += " •"
-						}
-						button := ui.ButtonBase(c).Height(28).Padding(0, 10).Gap(6).Children(func() {
-							ui.Icon(c, icons.Get("file-text")).Size(14, 14).TextColor(c.Theme().TextMuted)
-							ui.Text(c, label).SingleLine().MaxWidth(180).Ellipsis("…")
-						}).Label(a.t("Tab {title}", "title", tab.Note.Title)).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
-						if a.session.Active == tab.Note.Path {
-							button.Background(c.Theme().Surface).TextColor(c.Theme().Text)
-						}
-						if button.Clicked() {
-							a.activate(tab.Note.Path)
-						}
-						if drag, ok := ui.Drop[tabDrag](button); ok {
-							a.session.Reorder(drag.Path, tab.Note.Path)
-						}
-						button.ContextMenu(func(m *ui.Menu) {
-							if m.Item(a.t("Close tab")).Chosen() {
-								a.closeTabs([]string{tab.Note.Path})
-							}
-							if m.Item(a.t("Close other tabs")).Chosen() {
-								var paths []string
-								for _, t := range a.session.Tabs {
-									if t != tab {
-										paths = append(paths, t.Note.Path)
-									}
-								}
-								a.closeTabs(paths)
-							}
-							if m.Item(a.t("Close all tabs")).Chosen() {
-								a.closeTabs(a.allPaths())
-							}
-						})
-						if a.iconButton(c, "x", a.t("Close {title}", "title", tab.Note.Title), "").Size(24, 24).Disabled(a.busy).Clicked() {
-							a.closeTabs([]string{tab.Note.Path})
-						}
-					})
-				}
-			})
-		})
+
 		d := a.current()
 		if d == nil {
 			ui.Column(c).Grow(1).FillWidth().Center().Children(func() { ui.Text(c, a.t("Open a note from the sidebar")).TextColor(c.Theme().TextMuted) })
 			return
 		}
-		ui.Text(c, d.Tab.Note.Path).FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12)
 		if d.Tab.Conflict {
 			ui.Row(c).Gap(8).Padding(8).Background(c.Theme().Surface).Children(func() {
 				message := "File changed on disk. Your draft is kept."
@@ -314,4 +267,62 @@ func (a *App) edit(c *ui.Context, d *Document) {
 	d.Code.SoftWrap = a.wrap
 	d.Code.Font = ui.Font{Family: settings.Font("mono"), Size: float32(a.preferences.ContentFontSize)}
 	editor.View(c, d.Code).Key("editor").Label(a.t("Markdown editor")).Disabled(a.busy).Grow(1).FillWidth()
+}
+
+func (a *App) tabs(c *ui.Context) ui.Element {
+	return ui.ScrollHorizontal(c).Grow(1).MinWidth(0).FillHeight().Children(func() {
+		ui.Row(c).Gap(3).Padding(0, 2).Height(max(float32(44), c.TitleBar().Height)).AlignItems(ui.Center).Children(func() {
+			for _, tab := range slices.Clone(a.session.Tabs) {
+				tabRow := ui.Row(c).Key(tab).Drag(tabDrag{tab.Note.Path}).AlignItems(ui.Center).Radius(7).Width(190).MinWidth(104).MaxWidth(220).Height(28)
+				if a.session.Active == tab.Note.Path {
+					tabRow.Background(c.Theme().Accent.Mix(c.Theme().Surface, .86))
+					if a.lastVisibleTab != tab {
+						tabRow.ScrollIntoView()
+						a.lastVisibleTab = tab
+					}
+				}
+				tabRow.Children(func() {
+					label := tab.Note.Title
+					if tab.Dirty() {
+						label += " •"
+					}
+					button := ui.ButtonBase(c).Height(28).Grow(1).MinWidth(0).Justify(ui.Start).Padding(0, 10).TextColor(c.Theme().TextMuted).Children(func() {
+						ui.Text(c, label).SingleLine().MaxWidth(180).Ellipsis("…")
+					}).Label(a.t("Tab {title}", "title", tab.Note.Title)).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
+					if a.session.Active == tab.Note.Path {
+						button.Background(ui.Transparent).TextColor(c.Theme().Text)
+					}
+					if button.Hovered() && a.session.Active != tab.Note.Path {
+						tabRow.Background(c.Theme().SurfaceHover)
+					}
+					if button.Clicked() {
+						a.activate(tab.Note.Path)
+					}
+					if drag, ok := ui.Drop[tabDrag](button); ok {
+						a.session.Reorder(drag.Path, tab.Note.Path)
+					}
+					button.ContextMenu(func(m *ui.Menu) {
+						if m.Item(a.t("Close tab")).Chosen() {
+							a.closeTabs([]string{tab.Note.Path})
+						}
+						if m.Item(a.t("Close other tabs")).Chosen() {
+							var paths []string
+							for _, t := range a.session.Tabs {
+								if t != tab {
+									paths = append(paths, t.Note.Path)
+								}
+							}
+							a.closeTabs(paths)
+						}
+						if m.Item(a.t("Close all tabs")).Chosen() {
+							a.closeTabs(a.allPaths())
+						}
+					})
+					if a.windowButton(c, "x", a.t("Close {title}", "title", tab.Note.Title), "").Size(20, 20).Margin(0, 4, 0, 0).Disabled(a.busy).Clicked() {
+						a.closeTabs([]string{tab.Note.Path})
+					}
+				})
+			}
+		})
+	})
 }

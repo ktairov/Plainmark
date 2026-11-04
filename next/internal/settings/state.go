@@ -53,7 +53,7 @@ type State struct {
 }
 
 func NewState() State {
-	return State{Version: StateVersion, Preferences: Defaults(), Roots: map[string]RootState{}, SidebarVisible: true, SidebarWidth: 280, SplitPercent: 50, Wrap: true, Window: WindowState{Width: 1220, Height: 820}}
+	return State{Version: StateVersion, Preferences: Defaults(), Roots: map[string]RootState{}, SidebarVisible: true, SidebarWidth: 340, SplitPercent: 50, Wrap: true, Window: WindowState{Width: 1220, Height: 820}}
 }
 func ConfigPath() (string, error) {
 	if dir := os.Getenv("PLAINMARK_CONFIG_DIR"); dir != "" {
@@ -145,7 +145,7 @@ func (s *State) Normalize() {
 	}
 	s.Recent = recent
 	if !finite(float64(s.SidebarWidth)) {
-		s.SidebarWidth = 280
+		s.SidebarWidth = 340
 	}
 	s.SidebarWidth = min(max(s.SidebarWidth, 240), 800)
 	if !finite(float64(s.SplitPercent)) {

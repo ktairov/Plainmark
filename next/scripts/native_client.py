@@ -30,7 +30,7 @@ class NativeApp:
             self.stream = self.client.makefile("rwb")
             self.wait(lambda: bool(self.rpc("windows")["windows"]), "window did not open")
             self.rpc("idle", timeout=10000)
-            self.wait(lambda: any(n.get("key") == "open" and "disabled" not in n.get("states", []) for n in self.tree()), "startup did not finish")
+            self.wait(lambda: any(n.get("key") == "toggle-sidebar" and "disabled" not in n.get("states", []) for n in self.tree()), "startup did not finish")
         except BaseException:
             self.close()
             raise
@@ -60,6 +60,12 @@ class NativeApp:
 
     def menu(self, *path):
         self.rpc("menu", path=list(path))
+
+    def click(self, key, mods=None):
+        node = next(n for n in self.tree() if n.get("key") == key)
+        box = node["bounds"]
+        self.rpc("input", events=[{"type": "click", "x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2, "mods": mods or []}])
+        self.rpc("idle", timeout=10000)
 
     def quit(self, label="Quit Plainmark Go"):
         try:

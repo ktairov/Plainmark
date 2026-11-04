@@ -26,7 +26,7 @@ func TestSettingsPreviewCancelAndApply(t *testing.T) {
 	a.preferences.ContentFontSize = 21
 	tt.SetLocale("ru")
 	tt.Frame()
-	if !tt.HasText("Настройки") || !tt.HasText(a.t("Open file")) {
+	if !tt.HasText("Настройки") || !tt.HasText(a.t("Toggle sidebar")) {
 		t.Fatal("Russian settings or app UI missing", tt.Texts())
 	}
 	if err := tt.Click(a.t("Cancel")); err != nil {
