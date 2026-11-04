@@ -8,10 +8,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"plainmark/internal/session"
+	"plainmark/internal/settings"
 )
 
 func TestSettingsPreviewCancelAndApply(t *testing.T) {
 	a, _ := workspaceApp(t)
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	a.writer = settings.NewWriter(statePath)
+	defer a.writer.Close()
 	before := a.preferences
 	tt := ui.NewTester(a.view, 1220, 820)
 	tt.Frame()
@@ -40,6 +44,16 @@ func TestSettingsPreviewCancelAndApply(t *testing.T) {
 	}
 	if a.settingsOpen || a.preferences.ReadingFont != "serif" || a.preferences.ColorMode != "light" {
 		t.Fatal("apply discarded preferences")
+	}
+	if err := a.writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := settings.Load(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Preferences.ReadingFont != "serif" || loaded.Preferences.ColorMode != "light" || loaded.Preferences.Language != before.Language {
+		t.Fatal("Apply/Cancel was not persisted correctly")
 	}
 }
 

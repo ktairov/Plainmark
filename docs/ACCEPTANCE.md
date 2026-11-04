@@ -53,3 +53,4 @@
 | 2026-11-03 | Этап 2 | Go workspace/crypto + исходный Rust crypto harness | Файловое ядро, OS watcher, immutable fixture, Go ↔ Rust random Unicode round trips; UI-подключение watcher ещё впереди |
 | 2026-11-03 | Этап 3 | Headless UI, race и smoke настоящего окна | Вкладки, dirty-диалоги, rename, DnD файлов/вкладок, watcher и конфликты подключены к интерфейсу |
 | 2026-11-04 | Этап 4 | Headless UI, Go-тесты, vet, smoke и снимки | Поиск/ссылки/метаданные, crypto UI, RU/EN, шесть палитр, настройки preview/cancel/apply |
+| 2026-11-04 | Этап 5, 0.2.0 | Go-тесты, native smoke/lifecycle, release `.app` | Unicode/save/undo, watcher/конфликты, Rust fixture unlock/lock; перезапуски, dirty Quit/Cancel, discard, tabs/mode/pin/sidebar и пустая сессия; проверка подписи и release-запуск вне исходников с отдельной конфигурацией |

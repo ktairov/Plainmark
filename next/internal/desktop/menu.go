@@ -53,9 +53,11 @@ func (a *App) installMenu() {
 	blocked := a.busy || a.pending != nil || a.form != nil || a.deleting != nil || a.crypto != nil || a.settingsOpen
 	item := func(label, key string, disabled bool, fn func()) *mygo.MenuItem {
 		return &mygo.MenuItem{Label: a.t(label), Accelerator: key, Disabled: disabled, Click: func(*mygo.MenuItem, *mygo.Window) {
-			if !a.busy {
-				fn()
-			}
+			a.update(func() {
+				if !a.busy {
+					fn()
+				}
+			})
 		}}
 	}
 	newForm := func(op string) func() { return func() { a.form = &pathForm{operation: op, path: a.activeFolder} } }

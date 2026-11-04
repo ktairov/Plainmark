@@ -21,6 +21,10 @@ target/
 *.test
 *.prof
 
+# Python verification tools
+__pycache__/
+*.py[cod]
+
 # Local configuration and signing material
 .env
 .env.*

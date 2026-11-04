@@ -1,6 +1,19 @@
 # Plainmark Go
 
-Новая реализация Plainmark. Реализованы workspace, вкладки, файловые операции, watcher, конфликты, расширения просмотра, шифрование и настройки. В работе — сохранение собственной сессии и упаковка приложения. Папки Markdown открываются напрямую.
+Новая реализация Plainmark. Реализованы workspace, вкладки, файловые операции, watcher, конфликты, расширения просмотра, шифрование, настройки и восстановление собственной сессии. Папки Markdown открываются напрямую.
+
+## Сборка macOS
+
+```sh
+go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -skip-dmg
+open "build/release/darwin-arm64/Plainmark Go.app"
+```
+
+Готовая локальная сборка 0.2.0 для Apple Silicon: `build/release/darwin-arm64/Plainmark Go.app`. Для её запуска Go не нужен. Используется локальная ad-hoc подпись; нотариализация Apple не выполнялась. Проверки выполнены на текущем Mac, проверка другого компьютера остаётся частью приёмки.
+
+Своя конфигурация: `~/Library/Application Support/Plainmark-Go/state.json`. Она содержит настройки и навигацию, без текста заметок и паролей. Для отдельного профиля можно задать `PLAINMARK_CONFIG_DIR`. При первом запуске нужно выбрать папку; последующие запуски восстанавливают её. Импорта состояния Tauri нет.
+
+## Разработка
 
 Требуется Go 1.27.3 или новее. Node, Rust и cgo для этой реализации не нужны.
 
@@ -17,6 +30,7 @@ go build -o build/plainmark ./cmd/plainmark
 ```sh
 go build -tags e2e -o build/plainmark ./cmd/plainmark
 python3 scripts/smoke.py
+python3 scripts/lifecycle.py
 ```
 
 Снимки светлого и тёмного просмотра:

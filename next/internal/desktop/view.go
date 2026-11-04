@@ -113,6 +113,8 @@ func (a *App) view(c *ui.Context) {
 	a.modals(c)
 	a.cryptoModal(c)
 	a.preferencesModal(c)
+	a.persistState()
+	a.pumpFiles()
 }
 
 func (a *App) pinned() map[string]bool {
@@ -231,7 +233,7 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	} else {
 		row = ui.TreeItem(c, n.Title, nil, nil).Selected(a.session.Active == n.Path)
 	}
-	row.Tooltip(n.Path).Drag(fileDrag{n.Path})
+	row.Tooltip(n.Path).Disabled(a.busy).Drag(fileDrag{n.Path})
 	if row.Clicked() {
 		a.activeFolder = n.Folder
 		a.openNote(n.Path, "")

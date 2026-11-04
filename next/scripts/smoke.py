@@ -21,7 +21,7 @@ def main():
         process = subprocess.Popen(
             [str(ROOT / "build/plainmark"), str(note)],
             cwd=ROOT,
-            env={**os.environ, "MYGO_AUTOMATION": str(sockpath), "MYGO_LOCALE": "en"},
+            env={**os.environ, "MYGO_AUTOMATION": str(sockpath), "MYGO_LOCALE": "en", "PLAINMARK_CONFIG_DIR": str(directory / "config")},
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
         try:

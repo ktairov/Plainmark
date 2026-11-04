@@ -1,0 +1,18 @@
+{
+  "name": "Plainmark Go",
+  "slug": "plainmark-go",
+  "identifier": "com.plainmark.go",
+  "version": "0.2.0",
+  "main": "./cmd/plainmark",
+  "icon": "resources/icon.png",
+  "out": "build/release",
+  "fileAssociations": [
+    { "ext": ["md", "mdx"], "name": "Markdown Note", "mimeType": "text/markdown", "role": "Editor" }
+  ],
+  "macos": {
+    "icon": "resources/icon.icns",
+    "minimumSystemVersion": "12.0",
+    "signingIdentity": "-",
+    "infoPlist": { "CFBundleLocalizations": ["en", "ru"] }
+  }
+}

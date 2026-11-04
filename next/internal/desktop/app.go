@@ -84,6 +84,10 @@ type App struct {
 	nativeLocale        string
 	nativeColor         string
 	focusSearch         bool
+	saved               settings.State
+	writer              *settings.Writer
+	stateFingerprint    string
+	pendingFiles        []string
 }
 
 func New() (*App, error) {
@@ -91,7 +95,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
+	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), saved: settings.NewState(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
 		expanded: map[string]*bool{}, pins: map[string]map[string]bool{}, status: "Open a Markdown folder or file to begin",
 		run: func(fn func()) { go fn() }, trash: func(path string) error { return mygo.Shell.TrashItem(path) }}, nil
 }
@@ -129,6 +133,8 @@ func (a *App) async(work func() (func(), error)) {
 				a.refreshNeeded = false
 				a.refresh()
 			}
+			a.persistState()
+			a.pumpFiles()
 		})
 	})
 }
@@ -231,7 +237,9 @@ func resolveInitial(path string) (*workspace.Workspace, workspace.Snapshot, *wor
 	}
 	return w, s, n, nil
 }
-func (a *App) applyWorkspace(w *workspace.Workspace, s workspace.Snapshot, n *workspace.Note) {
+func (a *App) applyWorkspace(loaded loadedWorkspace) {
+	a.rememberRoot()
+	w, s := loaded.store, loaded.snapshot
 	a.epoch++
 	a.busy = false
 	a.refreshNeeded = false
@@ -252,33 +260,32 @@ func (a *App) applyWorkspace(w *workspace.Workspace, s workspace.Snapshot, n *wo
 		}
 	}
 	a.recent = recent
-	if n != nil {
-		a.openTab(*n, session.Preview)
-	}
+	a.restoreRoot(loaded)
 	a.status = "Opened " + w.Root()
 }
 
 // Synchronous initialization before the event loop, and in headless tests.
 func (a *App) load(path string) error {
-	w, s, n, err := resolveInitial(path)
+	loaded, err := prepareWorkspace(path, a.rootStates())
 	if err != nil {
 		return err
 	}
-	a.applyWorkspace(w, s, n)
+	a.applyWorkspace(loaded)
 	return nil
 }
 func (a *App) switchTo(path string) {
 	a.guard(nil, func() {
 		old := a.watcher
 		watchEnabled := a.win != nil
+		roots := a.rootStates()
 		a.async(func() (func(), error) {
-			w, s, n, err := resolveInitial(path)
+			loaded, err := prepareWorkspace(path, roots)
 			if err != nil {
 				return nil, err
 			}
 			var watch *workspace.Watcher
 			if watchEnabled {
-				watch, err = w.Watch(context.Background())
+				watch, err = loaded.store.Watch(context.Background())
 				if err != nil {
 					return nil, err
 				}
@@ -286,7 +293,7 @@ func (a *App) switchTo(path string) {
 			if old != nil {
 				old.Close()
 			}
-			return func() { a.applyWorkspace(w, s, n); a.attachWatch(w, watch) }, nil
+			return func() { a.applyWorkspace(loaded); a.attachWatch(loaded.store, watch) }, nil
 		})
 	})
 }
@@ -505,19 +512,50 @@ func (a *App) saveGuard(p *pendingAction) {
 }
 
 func Run(path string) error {
+	mygo.App.SetName("Plainmark Go")
 	mygo.App.SetLanguages("en", "ru")
 	a, err := New()
 	if err != nil {
 		return err
 	}
+	configPath, configErr := settings.ConfigPath()
+	writable := configErr == nil
+	if configErr == nil {
+		configErr = a.readState(configPath)
+		writable = configErr == nil
+	}
+	if configErr != nil {
+		a.status = "Settings: " + configErr.Error()
+	}
+	if path == "" {
+		path = os.Getenv("NOTES_ROOT")
+	}
+	if path == "" {
+		path = a.saved.Root
+	}
 	if path != "" {
 		if err = a.load(path); err != nil {
-			return err
+			a.status = err.Error()
 		}
 	}
+	locale := a.preferences.Language
+	if locale == "system" {
+		locale = ""
+	}
+	mygo.App.SetLocale(locale)
+	a.nativeLocale = a.preferences.Language
+	mygo.App.OnOpenFile(func(path string) { a.update(func() { a.pendingFiles = append(a.pendingFiles, path); a.pumpFiles() }) })
 	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "Plainmark — Go", Width: 1220, Height: 820, MinWidth: 880, MinHeight: 620, Content: ui.View(a.view)})
+		if writable {
+			a.writer = settings.NewWriter(configPath)
+		}
+		options := a.windowOptions()
+		options.Content = ui.View(a.view)
+		a.win = mygo.NewWindow(options)
 		a.installMenu()
+		a.watchStateErrors()
+		a.win.OnResize(a.rememberWindow)
+		a.win.OnMove(a.rememberWindow)
 		if a.store != nil {
 			w := a.store
 			a.async(func() (func(), error) {
@@ -529,34 +567,27 @@ func Run(path string) error {
 			if a.closeAllowed {
 				return
 			}
-			if a.busy {
-				e.PreventDefault()
-				return
-			}
-			a.flush()
-			if len(a.session.Dirty(nil)) > 0 {
-				e.PreventDefault()
-				a.guard(nil, func() { a.closeAllowed = true; a.win.Close() })
-			}
+			e.PreventDefault()
+			a.requestQuit()
 		})
 		mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
 			if a.closeAllowed {
 				return
 			}
-			if a.busy {
-				e.PreventDefault()
-				return
-			}
-			a.flush()
-			if len(a.session.Dirty(nil)) > 0 {
-				e.PreventDefault()
-				a.guard(nil, func() { a.closeAllowed = true; mygo.App.Quit() })
-			}
+			e.PreventDefault()
+			a.requestQuit()
 		})
+		a.rememberWindow()
+		a.pumpFiles()
 	})
 	mygo.App.OnQuit(func() {
 		if a.watcher != nil {
 			a.watcher.Close()
+		}
+		if a.writer != nil {
+			if err := a.writer.Close(); err != nil {
+				fmt.Fprintln(os.Stderr, "Settings:", err)
+			}
 		}
 	})
 	return mygo.App.Run()
