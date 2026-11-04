@@ -88,7 +88,9 @@ type App struct {
 	appearanceDark      bool
 	resolvedLanguage    string
 	nativeLocale        string
-	nativeColor         string
+	systemDark          bool
+	systemDarkKnown     bool
+	nativeButtonsKnown  bool
 	focusSearch         bool
 	saved               settings.State
 	writer              *settings.Writer
@@ -536,6 +538,8 @@ func (a *App) saveGuard(p *pendingAction) {
 func Run(path string) error {
 	mygo.App.SetName("Plainmark Go")
 	mygo.App.SetLanguages("en", "ru")
+	// Keep receiving OS appearance changes even while the window uses a local palette.
+	mygo.Theme.SetSource(mygo.ThemeSystem)
 	a, err := New()
 	if err != nil {
 		return err

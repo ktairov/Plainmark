@@ -38,10 +38,6 @@ func (a *App) preferencesModal(c *ui.Context) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).FillWidth().Height(52).Shrink(0).Padding(0, 20).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(s.softBorder).Children(func() {
 				ui.Text(c, a.t("Settings")).FontSize(17).Bold()
-				ui.Box(c).Grow(1)
-				if a.windowButton(c, "x", "Cancel", "close-settings").Clicked() {
-					a.closeSettings(false)
-				}
 			})
 			ui.Row(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 				ui.Column(c).Width(190).Shrink(0).FillHeight().Padding(14).Gap(5).Background(s.page).BorderWidth(0, 1, 0, 0).BorderColor(s.softBorder).Children(func() {

@@ -27,6 +27,13 @@ func (a *App) displayStatus() string {
 }
 func (a *App) applyStyle(c *ui.Context) {
 	a.resolvedLanguage = c.Locale()
+	// Read the system theme before replacing the context's palette. A toolbar
+	// override lasts until the next system appearance change in automatic mode.
+	systemDark := c.Theme().Dark
+	if a.systemDarkKnown && a.systemDark != systemDark && a.preferences.ColorMode == "system" {
+		a.windowColorOverride = ""
+	}
+	a.systemDark, a.systemDarkKnown = systemDark, true
 	colorMode := a.preferences.ColorMode
 	if !a.settingsOpen && a.windowColorOverride != "" {
 		colorMode = a.windowColorOverride
@@ -43,21 +50,18 @@ func (a *App) applyStyle(c *ui.Context) {
 			mygo.App.SetLocale(tag)
 			a.nativeLocale = a.preferences.Language
 		}
-		if a.nativeColor != colorMode {
-			source := mygo.ThemeSystem
-			if colorMode == "dark" {
-				source = mygo.ThemeDark
-			}
-			if colorMode == "light" {
-				source = mygo.ThemeLight
-			}
-			mygo.Theme.SetSource(source)
-			a.nativeColor = colorMode
-		}
 	}
 	preview := a.preferences
 	preview.ColorMode = colorMode
-	dark := preview.Dark(c.Theme().Dark)
+	dark := preview.Dark(systemDark)
+	if a.win != nil && (!a.nativeButtonsKnown || a.appearanceDark != dark) {
+		source := mygo.ThemeLight
+		if dark {
+			source = mygo.ThemeDark
+		}
+		a.win.SetWindowButtonsTheme(source)
+		a.nativeButtonsKnown = true
+	}
 	a.appearanceDark = dark
 	t := ui.LightTheme()
 	id := a.preferences.DayTheme

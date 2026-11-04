@@ -227,6 +227,68 @@ func TestToolbarColorIsLocalAndPopupEscapeKeepsSettingsOpen(t *testing.T) {
 	}
 }
 
+func TestSystemAppearanceResumesAfterLocalToggle(t *testing.T) {
+	a, _ := workspaceApp(t)
+	a.preferences.ColorMode = "system"
+	tt := ui.NewTester(a.view, 1100, 800)
+	tt.SetDark(false)
+	tt.Frame()
+	if a.appearanceDark {
+		t.Fatal("automatic mode did not follow system light appearance")
+	}
+	if err := tt.Click("Toggle color mode"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.appearanceDark || a.windowColorOverride != "dark" {
+		t.Fatal("local dark override was not applied")
+	}
+	tt.SetDark(true)
+	if !a.appearanceDark || a.windowColorOverride != "" {
+		t.Fatal("system dark event did not resume automatic appearance")
+	}
+	tt.SetDark(false)
+	if a.appearanceDark || a.preferences.ColorMode != "system" {
+		t.Fatal("system light event did not update the window")
+	}
+	// Appearance events also arrive while settings preview a different palette.
+	a.toggleColor()
+	a.openSettings()
+	a.settingsPreviewMode = "light"
+	tt.Frame()
+	tt.SetDark(true)
+	if a.appearanceDark || a.windowColorOverride != "" {
+		t.Fatal("system event lost the settings preview or retained the override")
+	}
+	a.closeSettings(false)
+	tt.Frame()
+	if !a.appearanceDark {
+		t.Fatal("Cancel did not return to the current system appearance")
+	}
+}
+
+func TestExplicitAppearanceSurvivesSystemChanges(t *testing.T) {
+	for _, mode := range []string{"light", "dark"} {
+		t.Run(mode, func(t *testing.T) {
+			a, _ := workspaceApp(t)
+			a.preferences.ColorMode = mode
+			tt := ui.NewTester(a.view, 1100, 800)
+			tt.SetDark(false)
+			tt.Frame()
+			tt.SetDark(true)
+			if a.appearanceDark != (mode == "dark") {
+				t.Fatal("system event replaced an explicit preference")
+			}
+			a.toggleColor()
+			tt.Frame()
+			tt.SetDark(false)
+			if a.appearanceDark != (mode == "light") || a.windowColorOverride == "" || a.preferences.ColorMode != mode {
+				t.Fatal("system event replaced a local override of an explicit preference")
+			}
+		})
+	}
+}
+
 func TestCreatePopupKeyboardAndOutsideDismissal(t *testing.T) {
 	a, _ := workspaceApp(t)
 	tt := ui.NewTester(a.view, 880, 620)

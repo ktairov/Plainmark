@@ -42,6 +42,7 @@ def main():
         try:
             app.menu("Plainmark Go", "Settings…")
             app.wait(lambda: dialog_open(app), "application menu did not open settings")
+            assert not any(n.get("key") == "close-settings" for n in app.tree()), "settings header still has a close button"
             press(app, "settings-section-theme")
             app.wait(lambda: any(n.get("key") == "theme-light-nord" for n in app.tree()), "theme cards missing")
             press(app, "theme-light-nord")
