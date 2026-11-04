@@ -30,7 +30,7 @@ class NativeApp:
             self.stream = self.client.makefile("rwb")
             self.wait(lambda: bool(self.rpc("windows")["windows"]), "window did not open")
             self.rpc("idle", timeout=10000)
-            self.wait(lambda: any(n.get("key") == "toggle-sidebar" and "disabled" not in n.get("states", []) for n in self.tree()), "startup did not finish")
+            self.wait(lambda: any(n.get("key") == "open-folder" and "disabled" not in n.get("states", []) for n in self.tree()), "startup did not finish")
         except BaseException:
             self.close()
             raise

@@ -40,8 +40,8 @@ def main():
         first.mkdir()
         app = NativeApp(binary, first, config, notes)
         try:
-            press(app, "settings")
-            app.wait(lambda: dialog_open(app), "gear did not open settings")
+            app.menu("Plainmark Go", "Settings…")
+            app.wait(lambda: dialog_open(app), "application menu did not open settings")
             press(app, "settings-section-theme")
             app.wait(lambda: any(n.get("key") == "theme-light-nord" for n in app.tree()), "theme cards missing")
             press(app, "theme-light-nord")
@@ -64,17 +64,25 @@ def main():
         second.mkdir()
         app = NativeApp(binary, second, config)
         try:
-            press(app, "settings")
+            app.menu("Plainmark Go", "Настройки…")
             app.wait(lambda: dialog_open(app), "settings did not open after restart")
             capture(app, "settings-native-ru-narrow.png")
             press(app, "settings-section-language")
-            app.wait(lambda: any(n.get("key") == "settings-language-en" for n in app.tree()), "language buttons missing")
+            app.wait(lambda: any(n.get("key") == "settings-language-select" for n in app.tree()), "language select missing")
             capture(app, "settings-native-language.png")
+            press(app, "settings-language-select")
+            app.wait(lambda: any(n.get("key") == "settings-language-en" for n in app.tree()), "language options missing")
+            capture(app, "settings-native-language-popup.png")
+            app.rpc("input", events=[{"type": "key", "key": "Escape"}])
+            app.wait(lambda: not any(n.get("key") == "settings-language-en" for n in app.tree()), "Escape did not close language popup")
+            assert dialog_open(app), "closing the language popup also closed settings"
+            press(app, "settings-language-select")
+            app.wait(lambda: any(n.get("key") == "settings-language-en" for n in app.tree()), "language popup did not reopen")
             press(app, "settings-language-en")
             app.wait(lambda: any(n.get("role") == "dialog" and n.get("label") == "Settings" for n in app.tree()), "language preview failed")
             press(app, "cancel-settings")
             app.wait(lambda: not dialog_open(app), "Cancel did not close settings")
-            press(app, "settings")
+            app.menu("Plainmark Go", "Настройки…")
             app.wait(lambda: any(n.get("role") == "dialog" and n.get("label") == "Настройки" for n in app.tree()), "Cancel did not restore Russian")
             app.rpc("input", events=[{"type": "key", "key": "Escape"}])
             app.wait(lambda: not dialog_open(app), "Escape did not close settings")
@@ -82,7 +90,7 @@ def main():
         finally:
             app.close()
         assert json.loads(path.read_text())["preferences"] == before, "cancelled preview was persisted"
-        print("PASS: gear, sections, palette preview/apply/restart, language preview/cancel, Escape, Russian UI at 880px")
+        print("PASS: application menu, sections, palette preview/apply/restart, language preview/cancel, Escape, Russian UI at 880px")
 
 
 if __name__ == "__main__":

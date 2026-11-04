@@ -63,6 +63,7 @@ func (a *App) menuTemplate() []*mygo.MenuItem {
 		return &mygo.MenuItem{ID: "plainmark." + id, Label: a.menuText(key), Accelerator: shortcut, Disabled: disabled, Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.update(func() {
 				if !a.menuBlocked() {
+					a.closePopup()
 					fn()
 					a.menuState = "" // Restore checkmarks even when reselecting the current mode.
 				}

@@ -28,6 +28,9 @@ func (a *App) displayStatus() string {
 func (a *App) applyStyle(c *ui.Context) {
 	a.resolvedLanguage = c.Locale()
 	colorMode := a.preferences.ColorMode
+	if !a.settingsOpen && a.windowColorOverride != "" {
+		colorMode = a.windowColorOverride
+	}
 	if a.settingsOpen && a.settingsPreviewMode != "" {
 		colorMode = a.settingsPreviewMode
 	}
@@ -100,14 +103,10 @@ func (a *App) openSettings() {
 	a.settingsOpen = true
 }
 func (a *App) toggleColor() {
-	dark := a.preferences.ColorMode == "dark"
-	if a.preferences.ColorMode == "system" && a.win != nil {
-		dark = mygo.Theme.IsDark()
-	}
-	if dark {
-		a.preferences.ColorMode = "light"
+	if a.appearanceDark {
+		a.windowColorOverride = "light"
 	} else {
-		a.preferences.ColorMode = "dark"
+		a.windowColorOverride = "dark"
 	}
 }
 

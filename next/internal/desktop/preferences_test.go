@@ -4,6 +4,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -114,9 +115,10 @@ func TestSettingsControlsAndThemePreview(t *testing.T) {
 		}
 		tt.Frame()
 	}
-	click("Settings")
+	menuByID(a.menuTemplate(), "settings").Click(nil, nil)
+	tt.Frame()
 	if !a.settingsOpen || a.settingsSection != "appearance" {
-		t.Fatal("gear did not open appearance settings")
+		t.Fatal("application menu did not open appearance settings")
 	}
 	click("Night")
 	if a.preferences.ColorMode != "dark" {
@@ -147,6 +149,7 @@ func TestSettingsControlsAndThemePreview(t *testing.T) {
 		saveFrame(t, tt, dir, "settings-themes.png")
 	}
 	click("Language")
+	click("System")
 	click("Русский")
 	if a.preferences.Language != "ru" || !tt.HasText("Используется системный язык") {
 		t.Fatal("language did not update immediately")
@@ -162,5 +165,94 @@ func TestSettingsControlsAndThemePreview(t *testing.T) {
 	click("Apply")
 	if a.settingsOpen || a.preferences.DayTheme != "nord" || a.preferences.ColorMode != before.ColorMode || a.settingsPreviewMode != "" {
 		t.Fatal("apply did not preserve color mode or clear palette preview")
+	}
+}
+
+func TestToolbarColorIsLocalAndPopupEscapeKeepsSettingsOpen(t *testing.T) {
+	a, _ := workspaceApp(t)
+	a.preferences.ColorMode = "light"
+	tt := ui.NewTester(a.view, 1100, 800)
+	tt.Frame()
+	for _, text := range tt.Texts() {
+		if text == "Settings" || text == "More" {
+			t.Fatal("settings/more remain in toolbar")
+		}
+	}
+	if err := tt.Click("Toggle color mode"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.appearanceDark || a.preferences.ColorMode != "light" || a.windowColorOverride != "dark" {
+		t.Fatal("toolbar changed the configured color mode")
+	}
+	data, err := a.captureState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "windowColorOverride") {
+		t.Fatal("window override leaked into saved settings")
+	}
+	a.openSettings()
+	tt.Frame()
+	if a.appearanceDark {
+		t.Fatal("settings should preview the configured light mode")
+	}
+	if err := tt.Click("Language"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("System"); err != nil {
+		t.Fatal(err)
+	}
+	if a.popup == nil {
+		t.Fatal("language popup did not open")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.popup != nil || !a.settingsOpen {
+		t.Fatal("Escape should close the popup first")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.settingsOpen || !a.appearanceDark || a.preferences.ColorMode != "light" {
+		t.Fatal("cancelling settings lost the local window theme")
+	}
+	a.openSettings()
+	tt.Frame()
+	if err := tt.Click("Apply"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.windowColorOverride != "" || a.appearanceDark {
+		t.Fatal("applying configured settings did not clear the temporary override")
+	}
+}
+
+func TestCreatePopupKeyboardAndOutsideDismissal(t *testing.T) {
+	a, _ := workspaceApp(t)
+	tt := ui.NewTester(a.view, 880, 620)
+	tt.Frame()
+	if err := tt.Click("Create"); err != nil {
+		t.Fatal(err)
+	}
+	if a.popup == nil {
+		t.Fatal("create popup did not open")
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.popup != nil || a.form == nil || a.form.operation != "folder" {
+		t.Fatal("keyboard did not choose New folder")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.form != nil {
+		t.Fatal("Escape did not close the styled dialog")
+	}
+	if err := tt.Click("Create"); err != nil {
+		t.Fatal(err)
+	}
+	tt.ClickAt(700, 500)
+	if a.popup != nil {
+		t.Fatal("outside click did not dismiss popup")
 	}
 }

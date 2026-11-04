@@ -5,19 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"plainmark/internal/icons"
-	"plainmark/internal/locales"
 	"plainmark/internal/session"
 )
-
-// Keep labels and tooltips even when the visual content is only a vector.
-func (a *App) iconButton(c *ui.Context, icon, label, key string) ui.Element {
-	b := ui.Button(c, "").Label(a.t(label)).Tooltip(a.t(label)).Size(30, 30).Padding(6).Radius(6).BorderWidth(0)
-	if key != "" {
-		b = b.Key(key)
-	}
-	b.Children(func() { ui.Icon(c, icons.Get(icon)).Size(16, 16) })
-	return b
-}
 
 func (a *App) toolbar(c *ui.Context) {
 	t := c.Theme()
@@ -46,31 +35,22 @@ func (a *App) toolbar(c *ui.Context) {
 			ui.Text(c, label).SingleLine().Ellipsis("…").MinWidth(0)
 			ui.Icon(c, icons.Get("chevron-down")).Size(13, 13).TextColor(t.TextMuted)
 		})
-		folder.PopoverMenuButton(func(m *ui.Menu) {
-			if len(a.recent) == 0 {
-				m.Item(locales.Catalog.Format(a.language(), "header.noRecentFolders", nil)).Disabled(true)
-			}
-			for _, path := range a.recent {
-				if m.Item(path).Disabled(a.busy).Chosen() {
-					a.switchTo(path)
-				}
-			}
-			m.Separator()
-			if m.Item(a.t("Open folder")).Disabled(a.busy).Chosen() {
-				a.chooseFolder()
-			}
-			if m.Item(a.t("Open file")).Disabled(a.busy).Chosen() {
-				a.chooseFile()
-			}
-		})
-		a.windowButton(c, "plus", "Create", "create").Disabled(a.busy || a.store == nil).PopoverMenuButton(func(m *ui.Menu) {
-			if m.Item(a.t("New note")).Chosen() {
-				a.form = &pathForm{operation: "note", path: a.activeFolder}
-			}
-			if m.Item(a.t("New folder")).Chosen() {
-				a.form = &pathForm{operation: "folder", path: a.activeFolder}
-			}
-		})
+		var folders []popupItem
+		if len(a.recent) == 0 {
+			folders = append(folders, popupItem{label: a.menuText("noRecentFolders"), disabled: true})
+		}
+		for _, path := range a.recent {
+			folders = append(folders, popupItem{label: path, icon: "folder-open", disabled: a.busy, action: func() { a.switchTo(path) }})
+		}
+		folders = append(folders, popupItem{separator: true}, popupItem{label: a.t("Open folder"), icon: "folder-open", disabled: a.busy, action: a.chooseFolder})
+		folder.Role(ui.RoleMenuButton)
+		a.bindPopup(c, folder, "workspace-menu", folders, false)
+		create := a.windowButton(c, "plus", "Create", "create").Role(ui.RoleMenuButton).Disabled(a.busy || a.store == nil)
+		a.bindPopup(c, create, "create-menu", []popupItem{
+			{label: a.contextText("newNote"), icon: "file-plus-2", action: func() { a.form = &pathForm{operation: "note", path: a.activeFolder} }},
+			{label: a.contextText("newFolder"), icon: "folder-plus", action: func() { a.form = &pathForm{operation: "folder", path: a.activeFolder} }},
+		}, false)
+
 		d := a.current()
 		if a.windowButton(c, "save", "Save", "save").Disabled(a.busy || d == nil || (d != nil && !d.Tab.Dirty())).Clicked() {
 			a.save()
@@ -101,45 +81,6 @@ func (a *App) toolbar(c *ui.Context) {
 		if a.windowButton(c, themeIcon, "Toggle color mode", "toggle-color").Clicked() {
 			a.toggleColor()
 		}
-		if a.windowButton(c, "settings", "Settings", "settings").Disabled(a.busy).Clicked() {
-			a.openSettings()
-		}
-		a.windowButton(c, "ellipsis", "More", "more").PopoverMenuButton(func(m *ui.Menu) {
-			if m.Item(a.t("Open file")).Disabled(a.busy).Chosen() {
-				a.chooseFile()
-			}
-			if m.Item(a.t("Find")).Disabled(d == nil || a.busy).Chosen() {
-				a.find()
-			}
-			if m.Item(a.t("Wrap")).Checked(a.wrap).Chosen() {
-				a.wrap = !a.wrap
-			}
-			if m.Item(a.t("Settings")).Chosen() {
-				a.openSettings()
-			}
-			if m.Item(a.t("Toggle color mode")).Chosen() {
-				a.toggleColor()
-			}
-			if m.Item(a.t("Encrypt selection")).Disabled(a.busy || a.current() == nil).Chosen() {
-				a.beginEncrypt()
-			}
-			if m.Item(a.t("Toggle sidebar")).Chosen() {
-				a.sidebarVisible = !a.sidebarVisible
-			}
-			if m.Item(a.t("Refresh")).Disabled(a.busy || a.store == nil).Chosen() {
-				a.refresh()
-			}
-			if m.Item(a.t("New folder")).Disabled(a.busy || a.store == nil).Chosen() {
-				a.form = &pathForm{operation: "folder", path: a.activeFolder}
-			}
-			m.Submenu(a.t("Recent folders"), func(m *ui.Menu) {
-				for _, p := range a.recent {
-					if m.Item(p).Disabled(a.busy).Chosen() {
-						a.switchTo(p)
-					}
-				}
-			})
-		})
 	}).Role(ui.RoleToolbar).Label(a.t("View mode")).Height(max(float32(44), bar.Height)).Shrink(0).FillWidth().Padding(0, max(float32(8), bar.Right), 0, left).Gap(4).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).DragWindow()
 }
 

@@ -19,9 +19,11 @@ type fileDrag struct{ Path string }
 type tabDrag struct{ Path string }
 
 func (a *App) view(c *ui.Context) {
+	if a.popup != nil {
+		a.popup.seen = false
+	}
 	a.applyStyle(c)
 	a.flush()
-	a.syncMenu()
 	t := c.Theme()
 	root := ui.Column(c).Fill()
 	if root.Shortcut(ui.Cmd, ui.KeyS) {
@@ -63,6 +65,9 @@ func (a *App) view(c *ui.Context) {
 	a.modals(c)
 	a.cryptoModal(c)
 	a.preferencesModal(c)
+	a.drawPopup(c)
+	a.flush()
+	a.syncMenu()
 	a.persistState()
 	a.pumpFiles()
 }
@@ -119,15 +124,15 @@ func (a *App) sidebar(c *ui.Context) {
 				ui.Icon(c, icons.Get("folder-open")).Size(16, 16).TextColor(t.TextMuted)
 				ui.Text(c, filepath.Base(a.store.Root())).Bold().SingleLine().Ellipsis("…")
 			})
-			if root.Clicked() {
+			rootContext := a.pathPopup(c, root, "", true)
+			if root.Clicked() && !rootContext {
 				a.activeFolder = ""
 			}
-			root.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
 			a.dropFolder(root, "")
 			ui.Tree(c, func() { a.folderChildren(c, "") }).FillWidth()
 		})
 		if a.store != nil {
-			list.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
+			a.pathPopup(c, list, "", true)
 		}
 	})
 }
@@ -177,10 +182,10 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 		if a.activeFolder == f.Path {
 			row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
 		}
-		if row.Clicked() {
+		context := a.pathPopup(c, row, f.Path, true)
+		if row.Clicked() && !context {
 			a.activeFolder = f.Path
 		}
-		row.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, f.Path, true) })
 		a.dropFolder(row, f.Path)
 	}
 	for _, n := range a.snapshot.Notes {
@@ -213,11 +218,11 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 		row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
 	}
 	row.Tooltip(n.Path).Disabled(a.busy).Drag(fileDrag{n.Path})
-	if row.Clicked() {
+	context := a.pathPopup(c, row, n.Path, false)
+	if row.Clicked() && !context {
 		a.activeFolder = n.Folder
 		a.navigateNote(n.Path, "", row.ClickModifiers()&(ui.Cmd|ui.Ctrl) != 0)
 	}
-	row.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, n.Path, false) })
 }
 func (a *App) dropFolder(row ui.Element, path string) {
 	if _, over := ui.DragOver[fileDrag](row); over {

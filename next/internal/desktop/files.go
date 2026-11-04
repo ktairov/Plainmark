@@ -13,41 +13,40 @@ import (
 	"plainmark/internal/workspace"
 )
 
-func (a *App) pathMenu(m *ui.Menu, path string, folder bool) {
+func (a *App) pathItems(path string, folder bool) []popupItem {
 	blocked := a.menuBlocked()
+	var items []popupItem
+	add := func(key, icon string, danger bool, action func()) {
+		items = append(items, popupItem{label: a.contextText(key), icon: icon, key: "context-" + key, disabled: blocked, danger: danger, action: action})
+	}
 	if folder {
-		if m.Item(a.contextText("newNote")).Disabled(blocked).Chosen() {
-			a.form = &pathForm{operation: "note", path: path}
-		}
-		if m.Item(a.contextText("newFolder")).Disabled(blocked).Chosen() {
-			a.form = &pathForm{operation: "folder", path: path}
-		}
+		add("newNote", "file-plus-2", false, func() { a.form = &pathForm{operation: "note", path: path} })
+		add("newFolder", "folder-plus", false, func() { a.form = &pathForm{operation: "folder", path: path} })
 	} else {
-		if m.Item(a.contextText("copyPath")).Disabled(blocked).Chosen() {
-			a.pathAction(path, false)
-		}
-		if m.Item(a.contextText("openInNewTab")).Disabled(blocked).Chosen() {
-			a.openNote(path, "")
-		}
+		add("copyPath", "clipboard-copy", false, func() { a.pathAction(path, false) })
+		add("openInNewTab", "file-plus-2", false, func() { a.openNote(path, "") })
 		pinKey := "pin"
 		if a.pinned()[path] {
 			pinKey = "unpin"
 		}
-		if m.Item(a.contextText(pinKey)).Disabled(blocked).Chosen() {
-			a.pinned()[path] = !a.pinned()[path]
-		}
+		add(pinKey, "pin", false, func() { a.pinned()[path] = !a.pinned()[path] })
 	}
 	if path != "" {
-		if m.Item(a.contextText("rename")).Disabled(blocked).Chosen() {
-			a.form = &pathForm{operation: "rename", path: path, value: filepath.Base(path)}
-		}
-		if m.Item(a.contextText("move")).Disabled(blocked).Chosen() {
-			a.form = &pathForm{operation: "move", path: path}
-		}
-		if m.Item(a.contextText("trash")).Disabled(blocked).Chosen() {
-			a.askDelete(path)
+		add("rename", "ellipsis-vertical", false, func() { a.form = &pathForm{operation: "rename", path: path, value: filepath.Base(path)} })
+		add("move", "folder-open", false, func() { a.form = &pathForm{operation: "move", path: path} })
+		add("trash", "trash-2", true, func() { a.askDelete(path) })
+	}
+	return items
+}
+func (a *App) pathMenu(m *ui.Menu, path string, folder bool) {
+	for _, item := range a.pathItems(path, folder) {
+		if m.Item(item.label).Disabled(item.disabled).Chosen() {
+			item.action()
 		}
 	}
+}
+func (a *App) pathPopup(c *ui.Context, row ui.Element, path string, folder bool) bool {
+	return a.bindPopup(c, row, "context:"+path, a.pathItems(path, folder), true)
 }
 func (a *App) pathAction(path string, reveal bool) {
 	w := a.store
@@ -256,24 +255,22 @@ func (a *App) saveCopy(d *Document) {
 }
 
 func (a *App) modals(c *ui.Context) {
+	s := a.visual(c)
 	if p := a.pending; p != nil {
 		open := true
-		ui.Modal(c, &open, func() {
-			ui.Column(c).Gap(12).Children(func() {
-				ui.Text(c, a.t("Unsaved changes")).FontSize(20).Bold()
-				ui.Text(c, a.t("Save changed notes before continuing?"))
-				ui.Row(c).Gap(8).Children(func() {
-					if ui.Button(c, a.t("Cancel")).Disabled(a.busy).Clicked() {
-						a.pending = nil
-					}
-					if ui.Button(c, a.t("Discard")).Disabled(a.busy).Clicked() {
-						a.pending = nil
-						p.action()
-					}
-					if ui.PrimaryButton(c, a.t("Save all")).Disabled(a.busy).Clicked() {
-						a.saveGuard(p)
-					}
-				})
+		a.dialog(c, &open, "Unsaved changes", func() {
+			ui.Text(c, a.t("Save changed notes before continuing?")).FontSize(16).LineHeight(1.5).TextColor(s.secondary)
+			ui.Row(c).Wrap().FillWidth().Justify(ui.End).Gap(9).Margin(20, 0, 0, 0).Children(func() {
+				if a.actionButton(c, "Cancel", "cancel-unsaved", "").Disabled(a.busy).Clicked() {
+					a.pending = nil
+				}
+				if a.actionButton(c, "Discard", "discard-unsaved", "").Disabled(a.busy).Clicked() {
+					a.pending = nil
+					p.action()
+				}
+				if a.actionButton(c, "Save all", "save-unsaved", "primary").Disabled(a.busy).Clicked() {
+					a.saveGuard(p)
+				}
 			})
 		})
 		if !open && !a.busy {
@@ -282,56 +279,52 @@ func (a *App) modals(c *ui.Context) {
 	}
 	if f := a.form; f != nil {
 		open := true
-		ui.Modal(c, &open, func() {
-			ui.Column(c).Gap(12).Children(func() {
-				ui.Text(c, a.t(map[string]string{"note": "New note", "folder": "New folder", "rename": "Rename", "move": "Move"}[f.operation])).FontSize(20).Bold()
-				if f.operation == "move" {
-					options := []string{"/"}
-					for _, dir := range a.snapshot.Folders {
-						if !session.Under(dir.Path, f.path) {
-							options = append(options, dir.Path)
-						}
-					}
-					selected := f.value
-					if selected == "" {
-						selected = "/"
-					}
-					ui.Select(c, &selected, options).Label(a.t("Destination folder"))
-					f.value = selected
-					if f.value == "/" {
-						f.value = ""
-					}
-				} else {
-					c.Key("path-name")
-					in := ui.TextInput(c, &f.value).Label(a.t("Name")).Disabled(a.busy).AutoFocus()
-					if in.Submitted() && !a.busy && strings.TrimSpace(f.value) != "" {
-						a.submitForm()
+		title := map[string]string{"note": "New note", "folder": "New folder", "rename": "Rename", "move": "Move"}[f.operation]
+		submit := false
+		a.dialog(c, &open, title, func() {
+			if f.operation == "move" {
+				ui.Text(c, a.t("Destination folder")).FontSize(13).TextColor(s.muted)
+				options := []selectOption{{id: "", label: "/"}}
+				for _, dir := range a.snapshot.Folders {
+					if !session.Under(dir.Path, f.path) {
+						options = append(options, selectOption{id: dir.Path, label: dir.Path})
 					}
 				}
-				ui.Row(c).Gap(8).Children(func() {
-					if ui.Button(c, a.t("Cancel")).Disabled(a.busy).Clicked() {
-						a.form = nil
-					}
-					if ui.PrimaryButton(c, a.t("Confirm")).Key("confirm-path").Disabled(a.busy || (f.operation != "move" && strings.TrimSpace(f.value) == "")).Clicked() {
-						a.submitForm()
-					}
-				})
+				a.selectControl(c, "path-destination", "Destination folder", f.value, options, func(value string) { f.value = value }).FillWidth().Disabled(a.busy)
+			} else {
+				input := a.formInput(c, "path-name", "Name", &f.value).Disabled(a.busy).AutoFocus()
+				submit = input.Submitted()
+			}
+			ui.Row(c).FillWidth().Justify(ui.End).Gap(9).Margin(20, 0, 0, 0).Children(func() {
+				if a.actionButton(c, "Cancel", "cancel-path", "").Disabled(a.busy).Clicked() {
+					a.form = nil
+				}
+				if a.actionButton(c, "Confirm", "confirm-path", "primary").Disabled(a.busy || (f.operation != "move" && strings.TrimSpace(f.value) == "")).Clicked() {
+					submit = true
+				}
 			})
 		})
+		if submit && !a.busy && a.form != nil && (f.operation == "move" || strings.TrimSpace(f.value) != "") {
+			a.submitForm()
+		}
 		if !open && !a.busy {
 			a.form = nil
 		}
 	}
 	if info := a.deleting; info != nil {
 		open := true
-		choice := ui.AlertDialog(c, &open, a.t("Move to Trash?"), a.t("{name} — {count} nested files", "name", info.Name, "count", fmtCount(info.NestedFiles)), a.t("Cancel"), a.t("Move to Trash"))
-		if choice == 0 {
-			a.deleting = nil
-		}
-		if choice == 1 {
-			a.deleteConfirmed()
-		}
-		if !open && !a.busy && choice < 0 {
+		a.dialog(c, &open, "Move to Trash?", func() {
+			ui.Text(c, a.t("{name} — {count} nested files", "name", info.Name, "count", fmtCount(info.NestedFiles))).FontSize(16).LineHeight(1.5).TextColor(s.secondary)
+			ui.Row(c).FillWidth().Justify(ui.End).Gap(9).Margin(20, 0, 0, 0).Children(func() {
+				if a.actionButton(c, "Cancel", "cancel-trash", "").Disabled(a.busy).Clicked() {
+					a.deleting = nil
+				}
+				if a.actionButton(c, "Move to Trash", "confirm-trash", "danger").Disabled(a.busy).Clicked() {
+					a.deleteConfirmed()
+				}
+			})
+		})
+		if !open && !a.busy {
 			a.deleting = nil
 		}
 	}

@@ -84,6 +84,7 @@ type App struct {
 	settingsOpen        bool
 	settingsSection     string
 	settingsPreviewMode string
+	windowColorOverride string
 	appearanceDark      bool
 	resolvedLanguage    string
 	nativeLocale        string
@@ -93,6 +94,8 @@ type App struct {
 	writer              *settings.Writer
 	stateFingerprint    string
 	windowStateLoaded   bool
+	popup               *popupState
+	popupReturnID       string
 	pendingFiles        []string
 }
 

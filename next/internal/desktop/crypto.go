@@ -123,43 +123,43 @@ func (a *App) cryptoModal(c *ui.Context) {
 	if f == nil {
 		return
 	}
-	open := true
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Gap(12).Children(func() {
-			title := "Encrypt selection"
+	open, submit := true, false
+	title := "Encrypt selection"
+	if f.kind == "decrypt" {
+		title = "Unlock encrypted block"
+	}
+	a.dialog(c, &open, title, func() {
+		if f.kind == "encrypt" {
+			ui.Text(c, a.t("The password cannot be recovered if you forget it.")).FontSize(16).LineHeight(1.5).TextColor(a.visual(c).secondary)
+		}
+		password := a.formInput(c, "crypto-password", "Password", &f.password).Password().Disabled(a.busy).AutoFocus()
+		submit = password.Submitted()
+		if f.kind == "encrypt" {
+			confirm := a.formInput(c, "crypto-confirm", "Confirm password", &f.confirm).Password().Disabled(a.busy)
+			submit = confirm.Submitted() || submit
+		}
+		if f.message != "" {
+			ui.Text(c, a.t(f.message)).FontSize(14).TextColor(c.Theme().Danger)
+		}
+		ui.Row(c).FillWidth().Justify(ui.End).Gap(9).Margin(20, 0, 0, 0).Children(func() {
+			if a.actionButton(c, "Cancel", "crypto-cancel", "").Disabled(a.busy).Clicked() {
+				a.closeCrypto()
+			}
+			label := "Encrypt"
 			if f.kind == "decrypt" {
-				title = "Unlock encrypted block"
+				label = "Unlock"
 			}
-			ui.Text(c, a.t(title)).FontSize(20).Bold()
-			if f.kind == "encrypt" {
-				ui.Text(c, a.t("The password cannot be recovered if you forget it."))
+			if a.busy {
+				label = "Working…"
 			}
-			c.Key("crypto-password")
-			ui.TextInput(c, &f.password).Password().Label(a.t("Password")).Disabled(a.busy).AutoFocus()
-			if f.kind == "encrypt" {
-				c.Key("crypto-confirm")
-				ui.TextInput(c, &f.confirm).Password().Label(a.t("Confirm password")).Disabled(a.busy)
+			if a.actionButton(c, label, "crypto-submit", "primary").Disabled(a.busy).Clicked() {
+				submit = true
 			}
-			if f.message != "" {
-				ui.Text(c, a.t(f.message)).TextColor(c.Theme().Danger)
-			}
-			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c, a.t("Cancel")).Disabled(a.busy).Clicked() {
-					a.closeCrypto()
-				}
-				label := "Encrypt"
-				if f.kind == "decrypt" {
-					label = "Unlock"
-				}
-				if a.busy {
-					label = "Working…"
-				}
-				if ui.PrimaryButton(c, a.t(label)).Key("crypto-submit").Disabled(a.busy).Clicked() {
-					a.submitCrypto()
-				}
-			})
 		})
 	})
+	if submit && !a.busy && a.crypto != nil {
+		a.submitCrypto()
+	}
 	if !open && !a.busy {
 		a.closeCrypto()
 	}
