@@ -195,6 +195,11 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 	}
 }
 func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
+	active := a.session.Active == n.Path
+	color := c.Theme().TextMuted
+	if active {
+		color = c.Theme().AccentText
+	}
 	prefix := "note:"
 	if pinned {
 		prefix = "pinned:"
@@ -202,20 +207,22 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	c.Key(prefix + n.Path)
 	var row ui.Element
 	if pinned {
-		row = ui.ButtonBase(c).FillWidth().Height(28).Padding(0, 12).Gap(8).Selected(a.session.Active == n.Path)
+		row = ui.ButtonBase(c).FillWidth().Padding(0, 12).Justify(ui.Start).Selected(active)
 	} else {
-		row = ui.TreeItem(c, "", nil, nil).Selected(a.session.Active == n.Path)
+		row = ui.TreeItem(c, "", nil, nil).Selected(active)
 	}
-	row.Label(n.Title).Gap(7).Height(32).Radius(6).Children(func() {
+	row.Label(n.Title).Gap(7).Height(34).Radius(6).TextColor(color).Children(func() {
 		name := "file-text"
 		if pinned {
 			name = "pin"
 		}
-		ui.Icon(c, icons.Get(name)).Size(14, 14).TextColor(c.Theme().TextMuted)
+		ui.Icon(c, icons.Get(name)).Size(14, 14).TextColor(color)
 		ui.Text(c, n.Title).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 	})
-	if a.session.Active == n.Path {
-		row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
+	if active {
+		row.Background(c.Theme().Accent)
+	} else if row.Hovered() {
+		row.Background(c.Theme().SurfaceHover)
 	}
 	row.Tooltip(n.Path).Disabled(a.busy).Drag(fileDrag{n.Path})
 	context := a.pathPopup(c, row, n.Path, false)
