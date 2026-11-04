@@ -48,7 +48,7 @@ def main():
         try:
             nodes = app.tree()
             assert len([n for n in nodes if n.get("label", "").startswith("Tab ")]) == 2, nodes
-            assert not any(n.get("key") == "note-search" for n in nodes), "sidebar visibility not restored"
+            assert not any(n.get("role") == "textField" and "search" in n.get("states", []) for n in nodes), "sidebar visibility not restored"
             assert any(n.get("key") == "editor" and "Second document" in n.get("value", "") for n in nodes), "active note/mode did not restore from disk"
             app.rpc("act", key="editor", action="focus")
             app.rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "# Unsaved lifecycle draft"}])

@@ -131,11 +131,17 @@ def main():
                 rpc("act", id=lock["id"], action="press")
                 wait_tree(lambda nodes: not any(n.get("label") == "Lock" for n in nodes), "block did not lock")
                 assert "# Legacy secret" not in note.read_text(encoding="utf-8"), "preview wrote plaintext to file"
+                sidebar_visible = lambda nodes: any(n.get("role") == "textField" and "search" in n.get("states", []) for n in nodes)
+                wait_tree(sidebar_visible, "sidebar search missing")
+                rpc("act", key="toggle-sidebar", action="press")
+                wait_tree(lambda nodes: not sidebar_visible(nodes), "sidebar icon did not hide sidebar")
+                rpc("act", key="toggle-sidebar", action="press")
+                wait_tree(sidebar_visible, "sidebar icon did not restore sidebar")
                 capture = rpc("capture")
                 output = os.environ.get("PLAINMARK_SMOKE_CAPTURE")
                 if output:
                     Path(output).write_bytes(base64.b64decode(capture["png"]))
-                print("PASS: native window, Unicode, undo/redo, save, preview, Copy, watcher, conflict/overwrite, Rust fixture unlock/lock and capture")
+                print("PASS: native window, Unicode, undo/redo, save, preview, Copy, watcher, conflict/overwrite, Rust fixture unlock/lock, sidebar icon hide/reopen and capture")
         finally:
             process.terminate()
             try:
