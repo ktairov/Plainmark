@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown/parser"
 	"plainmark/internal/preview"
 	"plainmark/internal/session"
+	"plainmark/internal/settings"
 )
 
 func (a *App) find() {
@@ -55,7 +56,8 @@ func (a *App) preview(c *ui.Context, d *Document) {
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		ui.FindBar(c, &d.FindOpen, &d.Query, len(d.Matches), &d.Match)
 		d.preparePreview()
-		a.math.Configure(&d.MD, c.Theme().Text, 20)
+		a.math.Configure(&d.MD, c.Theme().Text, float32(a.preferences.ContentFontSize)*1.25)
+		d.MD.Theme = &markdown.Theme{FontSize: float32(a.preferences.ContentFontSize), Font: settings.Font(a.preferences.ReadingFont), Mark: c.Theme().Accent.Alpha(.3)}
 		if a.store != nil {
 			d.MD.LoadImage = markdown.FileImages(filepath.Join(a.store.Root(), filepath.FromSlash(parent(d.Tab.Note.Path))))
 		}
@@ -110,7 +112,9 @@ func (a *App) preview(c *ui.Context, d *Document) {
 				})
 			})
 		}
-		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(20).Children(func() { markdown.View(c, d.previewSource, &d.MD).FillWidth() })
+		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(20).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(float32(a.preferences.PreviewWidth)).AlignSelf(ui.Center).Children(func() { markdown.View(c, d.previewSource, &d.MD).FillWidth() })
+		})
 		d.scrolledRevision = d.searchRevision
 	})
 }

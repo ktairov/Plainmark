@@ -105,14 +105,14 @@ func (a *App) closeCrypto() {
 func (a *App) encryptedBlock(c *ui.Context, d *Document, payload string) {
 	plain, ok := d.Unlocked[payload]
 	if !ok {
-		if ui.Button(c, "Unlock encrypted block").Key("unlock:" + payload).Disabled(a.busy).Clicked() {
+		if ui.Button(c, a.t("Unlock encrypted block")).Key("unlock:" + payload).Disabled(a.busy).Clicked() {
 			a.crypto = &cryptoForm{kind: "decrypt", doc: d, payload: payload}
 		}
 		return
 	}
 	ui.Column(c).Border(1, c.Theme().Border).Padding(12).Gap(8).Children(func() {
 		ui.RichText(c, searchSpans(plain, d.Query, c.Theme())...).Selectable()
-		if ui.Button(c, "Lock").Clicked() {
+		if ui.Button(c, a.t("Lock")).Clicked() {
 			delete(d.Unlocked, payload)
 			d.unlockRevision++
 		}
@@ -130,21 +130,21 @@ func (a *App) cryptoModal(c *ui.Context) {
 			if f.kind == "decrypt" {
 				title = "Unlock encrypted block"
 			}
-			ui.Text(c, title).FontSize(20).Bold()
+			ui.Text(c, a.t(title)).FontSize(20).Bold()
 			if f.kind == "encrypt" {
-				ui.Text(c, "The password cannot be recovered if you forget it.")
+				ui.Text(c, a.t("The password cannot be recovered if you forget it."))
 			}
 			c.Key("crypto-password")
-			ui.TextInput(c, &f.password).Password().Label("Password").Disabled(a.busy).AutoFocus()
+			ui.TextInput(c, &f.password).Password().Label(a.t("Password")).Disabled(a.busy).AutoFocus()
 			if f.kind == "encrypt" {
 				c.Key("crypto-confirm")
-				ui.TextInput(c, &f.confirm).Password().Label("Confirm password").Disabled(a.busy)
+				ui.TextInput(c, &f.confirm).Password().Label(a.t("Confirm password")).Disabled(a.busy)
 			}
 			if f.message != "" {
-				ui.Text(c, f.message).TextColor(c.Theme().Danger)
+				ui.Text(c, a.t(f.message)).TextColor(c.Theme().Danger)
 			}
 			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c, "Cancel").Disabled(a.busy).Clicked() {
+				if ui.Button(c, a.t("Cancel")).Disabled(a.busy).Clicked() {
 					a.closeCrypto()
 				}
 				label := "Encrypt"
@@ -154,7 +154,7 @@ func (a *App) cryptoModal(c *ui.Context) {
 				if a.busy {
 					label = "Working…"
 				}
-				if ui.PrimaryButton(c, label).Key("crypto-submit").Disabled(a.busy).Clicked() {
+				if ui.PrimaryButton(c, a.t(label)).Key("crypto-submit").Disabled(a.busy).Clicked() {
 					a.submitCrypto()
 				}
 			})

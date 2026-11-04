@@ -17,6 +17,7 @@ import (
 	"plainmark/internal/mathrender"
 	"plainmark/internal/preview"
 	"plainmark/internal/session"
+	"plainmark/internal/settings"
 	"plainmark/internal/workspace"
 )
 
@@ -76,6 +77,13 @@ type App struct {
 	trash               func(string) error
 	chooseSave          func(string) (string, error)
 	crypto              *cryptoForm
+	preferences         settings.Preferences
+	beforePreferences   settings.Preferences
+	settingsOpen        bool
+	resolvedLanguage    string
+	nativeLocale        string
+	nativeColor         string
+	focusSearch         bool
 }
 
 func New() (*App, error) {
@@ -83,7 +91,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{math: m, docs: map[*session.Tab]*Document{}, wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
+	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 280, sidebarVisible: true,
 		expanded: map[string]*bool{}, pins: map[string]map[string]bool{}, status: "Open a Markdown folder or file to begin",
 		run: func(fn func()) { go fn() }, trash: func(path string) error { return mygo.Shell.TrashItem(path) }}, nil
 }
@@ -497,6 +505,7 @@ func (a *App) saveGuard(p *pendingAction) {
 }
 
 func Run(path string) error {
+	mygo.App.SetLanguages("en", "ru")
 	a, err := New()
 	if err != nil {
 		return err

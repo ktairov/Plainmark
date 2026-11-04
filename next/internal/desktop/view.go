@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"fmt"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -11,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"plainmark/internal/session"
+	"plainmark/internal/settings"
 	"plainmark/internal/workspace"
 )
 
@@ -18,6 +18,7 @@ type fileDrag struct{ Path string }
 type tabDrag struct{ Path string }
 
 func (a *App) view(c *ui.Context) {
+	a.applyStyle(c)
 	a.flush()
 	a.syncMenu()
 	t := c.Theme()
@@ -43,44 +44,50 @@ func (a *App) view(c *ui.Context) {
 		a.find()
 	}
 	root.Children(func() {
-		ui.Row(c).Padding(8).Gap(8).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			if ui.Button(c, "Open folder").Key("open-folder").Disabled(a.busy).Clicked() {
+		ui.Row(c).Wrap().Padding(8).Gap(8).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+			if ui.Button(c, a.t("Open folder")).Key("open-folder").Disabled(a.busy).Clicked() {
 				a.chooseFolder()
 			}
-			if ui.Button(c, "Open file").Key("open").Disabled(a.busy).Clicked() {
+			if ui.Button(c, a.t("Open file")).Key("open").Disabled(a.busy).Clicked() {
 				a.chooseFile()
 			}
-			if ui.Button(c, "New note").Key("new-note").Disabled(a.busy || a.store == nil).Clicked() {
+			if ui.Button(c, a.t("New note")).Key("new-note").Disabled(a.busy || a.store == nil).Clicked() {
 				a.form = &pathForm{operation: "note", path: a.activeFolder}
 			}
 			d := a.current()
-			if ui.PrimaryButton(c, "Save").Key("save").Disabled(a.busy || d == nil || (d != nil && !d.Tab.Dirty())).Clicked() {
+			if ui.PrimaryButton(c, a.t("Save")).Key("save").Disabled(a.busy || d == nil || (d != nil && !d.Tab.Dirty())).Clicked() {
 				a.save()
 			}
 			if d != nil {
 				mode := int(d.Tab.Mode)
-				ui.Segmented(c, &mode, "Preview", "Edit", "Split").Label("View mode")
+				ui.Segmented(c, &mode, a.t("Preview"), a.t("Edit"), a.t("Split")).Label(a.t("View mode"))
 				d.Tab.Mode = session.Mode(mode)
 			}
-			if ui.Button(c, "Find").Disabled(d == nil || a.busy).Clicked() {
+			if ui.Button(c, a.t("Find")).Disabled(d == nil || a.busy).Clicked() {
 				a.find()
 			}
 			ui.Box(c).Grow(1)
-			ui.Checkbox(c, &a.wrap, "Wrap")
-			ui.MenuButton(c, "More", func(m *ui.Menu) {
-				if m.Item("Encrypt selection").Disabled(a.busy || a.current() == nil).Chosen() {
+			ui.Checkbox(c, &a.wrap, a.t("Wrap"))
+			ui.MenuButton(c, a.t("More"), func(m *ui.Menu) {
+				if m.Item(a.t("Settings")).Chosen() {
+					a.openSettings()
+				}
+				if m.Item(a.t("Toggle color mode")).Chosen() {
+					a.toggleColor()
+				}
+				if m.Item(a.t("Encrypt selection")).Disabled(a.busy || a.current() == nil).Chosen() {
 					a.beginEncrypt()
 				}
-				if m.Item("Toggle sidebar").Chosen() {
+				if m.Item(a.t("Toggle sidebar")).Chosen() {
 					a.sidebarVisible = !a.sidebarVisible
 				}
-				if m.Item("Refresh").Disabled(a.busy || a.store == nil).Chosen() {
+				if m.Item(a.t("Refresh")).Disabled(a.busy || a.store == nil).Chosen() {
 					a.refresh()
 				}
-				if m.Item("New folder").Disabled(a.busy || a.store == nil).Chosen() {
+				if m.Item(a.t("New folder")).Disabled(a.busy || a.store == nil).Chosen() {
 					a.form = &pathForm{operation: "folder", path: a.activeFolder}
 				}
-				m.Submenu("Recent folders", func(m *ui.Menu) {
+				m.Submenu(a.t("Recent folders"), func(m *ui.Menu) {
 					for _, p := range a.recent {
 						if m.Item(p).Disabled(a.busy).Chosen() {
 							a.switchTo(p)
@@ -95,16 +102,17 @@ func (a *App) view(c *ui.Context) {
 			a.documentArea(c)
 		}
 		ui.Row(c).Padding(4, 12).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-			ui.Text(c, a.status).Key("status").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, a.displayStatus()).Key("status").FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
 			if d := a.current(); d != nil {
 				p := d.Code.CursorPos()
-				ui.Text(c, fmt.Sprintf("Ln %d, Col %d", p.Line+1, p.Col+1)).FontSize(12)
+				ui.Text(c, a.positionText(p.Line+1, p.Col+1)).FontSize(12)
 			}
 		})
 	})
 	a.modals(c)
 	a.cryptoModal(c)
+	a.preferencesModal(c)
 }
 
 func (a *App) pinned() map[string]bool {
@@ -130,8 +138,12 @@ func (a *App) matches(n workspace.Entry) bool {
 }
 func (a *App) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.SearchField(c, &a.query).Key("note-search").Label("Search notes").Placeholder("Search notes").Margin(8)
+	ui.Column(c).Fill().FontSize(float32(a.preferences.TreeFontSize)).Background(t.Surface).Children(func() {
+		search := ui.SearchField(c, &a.query).Key("note-search").Label(a.t("Search notes")).Placeholder(a.t("Search notes")).Margin(8)
+		if a.focusSearch {
+			search.Focus()
+			a.focusSearch = false
+		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			if a.store == nil {
 				return
@@ -150,7 +162,7 @@ func (a *App) sidebar(c *ui.Context) {
 			}
 			sort.Slice(pinned, func(i, j int) bool { return pinned[i].Title < pinned[j].Title })
 			if len(pinned) > 0 {
-				ui.Text(c, "Pinned").FontSize(12).Bold().Margin(8)
+				ui.Text(c, a.t("Pinned")).FontSize(12).Bold().Margin(8)
 				for _, n := range pinned {
 					a.noteRow(c, n, true)
 				}
@@ -245,7 +257,7 @@ func (a *App) documentArea(c *ui.Context) {
 						if tab.Dirty() {
 							label += " •"
 						}
-						button := ui.Button(c, label).Label("Tab " + tab.Note.Title).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
+						button := ui.Button(c, label).Label(a.t("Tab {title}", "title", tab.Note.Title)).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
 						if button.Clicked() {
 							a.activate(tab.Note.Path)
 						}
@@ -253,10 +265,10 @@ func (a *App) documentArea(c *ui.Context) {
 							a.session.Reorder(drag.Path, tab.Note.Path)
 						}
 						button.ContextMenu(func(m *ui.Menu) {
-							if m.Item("Close tab").Chosen() {
+							if m.Item(a.t("Close tab")).Chosen() {
 								a.closeTabs([]string{tab.Note.Path})
 							}
-							if m.Item("Close other tabs").Chosen() {
+							if m.Item(a.t("Close other tabs")).Chosen() {
 								var paths []string
 								for _, t := range a.session.Tabs {
 									if t != tab {
@@ -265,11 +277,11 @@ func (a *App) documentArea(c *ui.Context) {
 								}
 								a.closeTabs(paths)
 							}
-							if m.Item("Close all tabs").Chosen() {
+							if m.Item(a.t("Close all tabs")).Chosen() {
 								a.closeTabs(a.allPaths())
 							}
 						})
-						if ui.Button(c, "×").Label("Close " + tab.Note.Title).Disabled(a.busy).Clicked() {
+						if ui.Button(c, "×").Label(a.t("Close {title}", "title", tab.Note.Title)).Disabled(a.busy).Clicked() {
 							a.closeTabs([]string{tab.Note.Path})
 						}
 					})
@@ -278,7 +290,7 @@ func (a *App) documentArea(c *ui.Context) {
 		})
 		d := a.current()
 		if d == nil {
-			ui.Column(c).Grow(1).FillWidth().Center().Children(func() { ui.Text(c, "Open a note from the sidebar").TextColor(c.Theme().TextMuted) })
+			ui.Column(c).Grow(1).FillWidth().Center().Children(func() { ui.Text(c, a.t("Open a note from the sidebar")).TextColor(c.Theme().TextMuted) })
 			return
 		}
 		ui.Text(c, d.Tab.Note.Path).FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 12)
@@ -288,14 +300,14 @@ func (a *App) documentArea(c *ui.Context) {
 				if d.Tab.Removed {
 					message = "File was removed. Your draft is kept."
 				}
-				ui.Text(c, message)
-				if ui.Button(c, "Reload").Disabled(a.busy || d.Tab.Removed).Clicked() {
+				ui.Text(c, a.t(message))
+				if ui.Button(c, a.t("Reload")).Disabled(a.busy || d.Tab.Removed).Clicked() {
 					a.reload(d)
 				}
-				if ui.Button(c, "Save copy").Disabled(a.busy).Clicked() {
+				if ui.Button(c, a.t("Save copy")).Disabled(a.busy).Clicked() {
 					a.saveCopy(d)
 				}
-				if ui.Button(c, "Overwrite").Disabled(a.busy || d.Tab.Removed).Clicked() {
+				if ui.Button(c, a.t("Overwrite")).Disabled(a.busy || d.Tab.Removed).Clicked() {
 					a.saveDocument(d, true, nil)
 				}
 			})
@@ -314,5 +326,6 @@ func (a *App) documentArea(c *ui.Context) {
 }
 func (a *App) edit(c *ui.Context, d *Document) {
 	d.Code.SoftWrap = a.wrap
-	editor.View(c, d.Code).Key("editor").Label("Markdown editor").Disabled(a.busy).Grow(1).FillWidth()
+	d.Code.Font = ui.Font{Family: settings.Font("mono"), Size: float32(a.preferences.ContentFontSize)}
+	editor.View(c, d.Code).Key("editor").Label(a.t("Markdown editor")).Disabled(a.busy).Grow(1).FillWidth()
 }

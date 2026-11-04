@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -30,8 +31,12 @@ func (a *App) syncMenu() {
 			}
 		}
 	}
-	state := fmt.Sprintf("%t/%t/%s/%t/%d/%d/%t/%s/%t/%t/%t", a.busy, a.store != nil, active, dirty, len(a.session.Tabs), mode, a.sidebarVisible, strings.Join(a.recent, "\x00"), a.pending != nil, a.form != nil, a.deleting != nil || a.crypto != nil)
-	state += fmt.Sprintf("/%t/%t", a.crypto != nil, selection)
+	state := fmt.Sprintf("%t/%t/%s/%t/%d/%d/%t/%s/%t/%t/%t", a.busy, a.store != nil, active, dirty, len(a.session.Tabs), mode, a.sidebarVisible, strings.Join(a.recent, "\x00"), a.pending != nil, a.form != nil, a.deleting != nil || a.crypto != nil || a.settingsOpen)
+	state += fmt.Sprintf("/%t/%t", a.crypto != nil || a.settingsOpen, selection)
+	state += "/" + a.language() + "/" + a.preferences.ColorMode
+	if d != nil {
+		state += fmt.Sprintf("/%t", a.pinned()[d.Tab.Note.Path])
+	}
 	if state == a.menuState {
 		return
 	}
@@ -45,9 +50,9 @@ func (a *App) installMenu() {
 	d := a.current()
 	hasNote := d != nil
 	dirty := hasNote && d.Tab.Dirty()
-	blocked := a.busy || a.pending != nil || a.form != nil || a.deleting != nil || a.crypto != nil
+	blocked := a.busy || a.pending != nil || a.form != nil || a.deleting != nil || a.crypto != nil || a.settingsOpen
 	item := func(label, key string, disabled bool, fn func()) *mygo.MenuItem {
-		return &mygo.MenuItem{Label: label, Accelerator: key, Disabled: disabled, Click: func(*mygo.MenuItem, *mygo.Window) {
+		return &mygo.MenuItem{Label: a.t(label), Accelerator: key, Disabled: disabled, Click: func(*mygo.MenuItem, *mygo.Window) {
 			if !a.busy {
 				fn()
 			}
@@ -59,9 +64,10 @@ func (a *App) installMenu() {
 		recent = append(recent, item(p, "", blocked, func() { a.switchTo(p) }))
 	}
 	file := []*mygo.MenuItem{
+		item("Settings", "CmdOrCtrl+,", blocked, a.openSettings),
 		item("Open folder…", "CmdOrCtrl+Shift+O", blocked, a.chooseFolder), item("Open file…", "CmdOrCtrl+O", blocked, a.chooseFile),
-		{Label: "Recent folders", Submenu: recent},
-		item("New note…", "CmdOrCtrl+N", blocked || a.store == nil, newForm("note")), item("New folder…", "", blocked || a.store == nil, newForm("folder")),
+		{Label: a.t("Recent folders"), Submenu: recent},
+		item("New note…", "CmdOrCtrl+N", blocked || a.store == nil, newForm("note")), item("New folder…", "CmdOrCtrl+Shift+N", blocked || a.store == nil, newForm("folder")),
 		item("Save", "CmdOrCtrl+S", blocked || !dirty, a.save),
 		item("Close tab", "CmdOrCtrl+W", blocked || !hasNote, func() {
 			if d := a.current(); d != nil {
@@ -75,7 +81,7 @@ func (a *App) installMenu() {
 		name string
 		key  string
 		mode session.Mode
-	}{{"Preview", "CmdOrCtrl+1", session.Preview}, {"Edit", "CmdOrCtrl+2", session.Edit}, {"Split", "CmdOrCtrl+3", session.Split}} {
+	}{{"Preview", "Alt+1", session.Preview}, {"Edit", "Alt+2", session.Edit}, {"Split", "Alt+3", session.Split}} {
 		view = append(view, item(choice.name, choice.key, blocked || !hasNote, func() {
 			if d := a.current(); d != nil {
 				d.Tab.Mode = choice.mode
@@ -83,9 +89,28 @@ func (a *App) installMenu() {
 		}))
 	}
 	view = append(view, item("Find", "CmdOrCtrl+F", blocked || !hasNote, a.find), item("Encrypt selection", "CmdOrCtrl+Shift+E", blocked || !hasNote || d.Tab.Mode == session.Preview || len(d.Code.Selections()) == 0 || d.Code.Selections()[0].Empty(), a.beginEncrypt))
+	view = append(view, item("Search notes", "CmdOrCtrl+Shift+F", blocked || a.store == nil, func() { a.sidebarVisible = true; a.focusSearch = true }))
+	view = append(view, item("Toggle color mode", "", blocked, a.toggleColor))
 	view = append(view, item("Toggle sidebar", "CmdOrCtrl+B", blocked, func() { a.sidebarVisible = !a.sidebarVisible }), item("Refresh", "CmdOrCtrl+R", blocked || a.store == nil, a.refresh))
 	view = append(view, item("Previous tab", "Ctrl+Shift+Tab", blocked || !hasNote, func() { a.cycleTab(-1) }), item("Next tab", "Ctrl+Tab", blocked || !hasNote, func() { a.cycleTab(1) }))
-	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Label: "File", Submenu: file}, {Role: mygo.RoleEditMenu}, {Label: "View", Submenu: view}, {Role: mygo.RoleWindowMenu}}))
+	note := []*mygo.MenuItem{}
+	if hasNote {
+		path := d.Tab.Note.Path
+		pin := item("Pinned", "", blocked, func() { a.pinned()[path] = !a.pinned()[path] })
+		pin.Type = mygo.MenuItemCheckbox
+		pin.Checked = a.pinned()[path]
+		note = append(note, pin, item("Copy full path", "", blocked, func() { a.pathAction(path, false) }), item("Copy relative path", "", blocked, func() { mygo.Clipboard.WriteText(path) }), item("Reveal in Finder", "", blocked, func() { a.pathAction(path, true) }), item("Rename", "", blocked, func() { a.form = &pathForm{operation: "rename", path: path, value: filepath.Base(path)} }), item("Move", "", blocked, func() { a.form = &pathForm{operation: "move", path: path} }), item("Move to Trash", "", blocked, func() { a.askDelete(path) }))
+		note = append(note, item("Close other tabs", "", blocked, func() {
+			var paths []string
+			for _, t := range a.session.Tabs {
+				if t.Note.Path != path {
+					paths = append(paths, t.Note.Path)
+				}
+			}
+			a.closeTabs(paths)
+		}))
+	}
+	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Label: a.t("File"), Submenu: file}, {Role: mygo.RoleEditMenu}, {Label: a.t("View"), Submenu: view}, {Label: a.t("Note"), Submenu: note, Disabled: !hasNote}, {Role: mygo.RoleWindowMenu}}))
 	title := "Plainmark — Go"
 	if d != nil {
 		title = d.Tab.Note.Title + " — Plainmark"
