@@ -36,7 +36,7 @@ def main():
             assert active(app, "First", 2), "Cmd-click duplicated the current tab"
             app.click("note:c.md")
             app.wait(lambda: active(app, "Third", 2), "plain click changed the number of tabs")
-            app.rpc("menu", path=["View", "Edit"])
+            app.rpc("menu", path=["View", "Editor"])
             app.wait(lambda: any(n.get("key") == "editor" for n in app.tree()), "editor missing")
             app.rpc("act", key="editor", action="focus")
             app.rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "Unsaved third document"}])
@@ -45,7 +45,7 @@ def main():
             app.wait(lambda: active(app, "First", 3), "navigation did not retain the dirty tab")
             app.click("note:c.md")
             app.wait(lambda: any(n.get("key") == "editor" and "Unsaved third document" in n.get("value", "") for n in app.tree()), "dirty buffer was lost")
-            app.rpc("menu", path=["File", "Close all tabs"])
+            app.rpc("menu", path=["Window", "Close All Tabs"])
             app.wait(lambda: any(n.get("label") == "Discard" for n in app.tree()), "dirty-close guard missing")
             discard = next(n for n in app.tree() if n.get("label") == "Discard")
             app.rpc("act", id=discard["id"], action="press")

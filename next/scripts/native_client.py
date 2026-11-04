@@ -67,7 +67,7 @@ class NativeApp:
         self.rpc("input", events=[{"type": "click", "x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2, "mods": mods or []}])
         self.rpc("idle", timeout=10000)
 
-    def quit(self, label="Quit Plainmark Go"):
+    def quit(self, label="Quit Plainmark"):
         try:
             self.menu("Plainmark Go", label)
         except EOFError:

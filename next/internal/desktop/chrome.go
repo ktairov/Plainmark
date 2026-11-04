@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"plainmark/internal/icons"
+	"plainmark/internal/locales"
 	"plainmark/internal/session"
 )
 
@@ -46,6 +47,9 @@ func (a *App) toolbar(c *ui.Context) {
 			ui.Icon(c, icons.Get("chevron-down")).Size(13, 13).TextColor(t.TextMuted)
 		})
 		folder.PopoverMenuButton(func(m *ui.Menu) {
+			if len(a.recent) == 0 {
+				m.Item(locales.Catalog.Format(a.language(), "header.noRecentFolders", nil)).Disabled(true)
+			}
 			for _, path := range a.recent {
 				if m.Item(path).Disabled(a.busy).Chosen() {
 					a.switchTo(path)

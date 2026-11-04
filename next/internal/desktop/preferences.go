@@ -55,6 +55,7 @@ func (a *App) applyStyle(c *ui.Context) {
 	preview := a.preferences
 	preview.ColorMode = colorMode
 	dark := preview.Dark(c.Theme().Dark)
+	a.appearanceDark = dark
 	t := ui.LightTheme()
 	id := a.preferences.DayTheme
 	if dark {

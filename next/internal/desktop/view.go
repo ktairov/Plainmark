@@ -97,7 +97,7 @@ func (a *App) sidebar(c *ui.Context) {
 			search.Focus()
 			a.focusSearch = false
 		}
-		ui.Scroll(c).Grow(1).FillWidth().Padding(0, 10, 16, 10).Children(func() {
+		list := ui.Scroll(c).Grow(1).FillWidth().Padding(0, 10, 16, 10).Children(func() {
 			if a.store == nil {
 				return
 			}
@@ -122,10 +122,13 @@ func (a *App) sidebar(c *ui.Context) {
 			if root.Clicked() {
 				a.activeFolder = ""
 			}
-			root.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
+			root.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
 			a.dropFolder(root, "")
 			ui.Tree(c, func() { a.folderChildren(c, "") }).FillWidth()
 		})
+		if a.store != nil {
+			list.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, "", true) })
+		}
 	})
 }
 func parent(path string) string {
@@ -177,7 +180,7 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 		if row.Clicked() {
 			a.activeFolder = f.Path
 		}
-		row.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, f.Path, true) })
+		row.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, f.Path, true) })
 		a.dropFolder(row, f.Path)
 	}
 	for _, n := range a.snapshot.Notes {
@@ -214,7 +217,7 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 		a.activeFolder = n.Folder
 		a.navigateNote(n.Path, "", row.ClickModifiers()&(ui.Cmd|ui.Ctrl) != 0)
 	}
-	row.ContextMenu(func(m *ui.Menu) { a.pathMenu(m, n.Path, false) })
+	row.PopoverMenu(func(m *ui.Menu) { a.pathMenu(m, n.Path, false) })
 }
 func (a *App) dropFolder(row ui.Element, path string) {
 	if _, over := ui.DragOver[fileDrag](row); over {
@@ -302,10 +305,10 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 						a.session.Reorder(drag.Path, tab.Note.Path)
 					}
 					button.ContextMenu(func(m *ui.Menu) {
-						if m.Item(a.t("Close tab")).Chosen() {
+						if m.Item(a.menuText("closeTab")).Chosen() {
 							a.closeTabs([]string{tab.Note.Path})
 						}
-						if m.Item(a.t("Close other tabs")).Chosen() {
+						if m.Item(a.menuText("closeOtherTabs")).Disabled(a.busy || len(a.session.Tabs) < 2).Chosen() {
 							var paths []string
 							for _, t := range a.session.Tabs {
 								if t != tab {
@@ -314,7 +317,7 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 							}
 							a.closeTabs(paths)
 						}
-						if m.Item(a.t("Close all tabs")).Chosen() {
+						if m.Item(a.menuText("closeAllTabs")).Chosen() {
 							a.closeTabs(a.allPaths())
 						}
 					})

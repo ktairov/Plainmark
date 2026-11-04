@@ -14,39 +14,37 @@ import (
 )
 
 func (a *App) pathMenu(m *ui.Menu, path string, folder bool) {
+	blocked := a.menuBlocked()
 	if folder {
-		if m.Item(a.t("New note")).Disabled(a.busy).Chosen() {
+		if m.Item(a.contextText("newNote")).Disabled(blocked).Chosen() {
 			a.form = &pathForm{operation: "note", path: path}
 		}
-		if m.Item(a.t("New folder")).Disabled(a.busy).Chosen() {
+		if m.Item(a.contextText("newFolder")).Disabled(blocked).Chosen() {
 			a.form = &pathForm{operation: "folder", path: path}
 		}
 	} else {
-		if m.Item(a.t("Open")).Disabled(a.busy).Chosen() {
-			a.navigateNote(path, "", false)
+		if m.Item(a.contextText("copyPath")).Disabled(blocked).Chosen() {
+			a.pathAction(path, false)
 		}
-		if m.Item(a.t("Pinned")).Checked(a.pinned()[path]).Chosen() {
+		if m.Item(a.contextText("openInNewTab")).Disabled(blocked).Chosen() {
+			a.openNote(path, "")
+		}
+		pinKey := "pin"
+		if a.pinned()[path] {
+			pinKey = "unpin"
+		}
+		if m.Item(a.contextText(pinKey)).Disabled(blocked).Chosen() {
 			a.pinned()[path] = !a.pinned()[path]
 		}
 	}
 	if path != "" {
-		if m.Item(a.t("Rename")).Disabled(a.busy).Chosen() {
+		if m.Item(a.contextText("rename")).Disabled(blocked).Chosen() {
 			a.form = &pathForm{operation: "rename", path: path, value: filepath.Base(path)}
 		}
-		if m.Item(a.t("Move")).Disabled(a.busy).Chosen() {
+		if m.Item(a.contextText("move")).Disabled(blocked).Chosen() {
 			a.form = &pathForm{operation: "move", path: path}
 		}
-		if m.Item(a.t("Copy relative path")).Chosen() {
-			mygo.Clipboard.WriteText(path)
-		}
-		if m.Item(a.t("Copy full path")).Disabled(a.busy).Chosen() {
-			a.pathAction(path, false)
-		}
-		if m.Item(a.t("Reveal in Finder")).Disabled(a.busy).Chosen() {
-			a.pathAction(path, true)
-		}
-		m.Separator()
-		if m.Item(a.t("Move to Trash")).Disabled(a.busy).Chosen() {
+		if m.Item(a.contextText("trash")).Disabled(blocked).Chosen() {
 			a.askDelete(path)
 		}
 	}

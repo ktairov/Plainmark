@@ -35,6 +35,7 @@ python3 scripts/smoke.py
 python3 scripts/lifecycle.py
 python3 scripts/settings_ui.py
 python3 scripts/navigation.py
+python3 scripts/menu_ui.py
 ```
 
 Снимки светлого и тёмного просмотра:

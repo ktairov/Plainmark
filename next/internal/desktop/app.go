@@ -83,6 +83,7 @@ type App struct {
 	settingsOpen        bool
 	settingsSection     string
 	settingsPreviewMode string
+	appearanceDark      bool
 	resolvedLanguage    string
 	nativeLocale        string
 	nativeColor         string

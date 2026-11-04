@@ -78,7 +78,7 @@ def main():
             app.wait(lambda: any(n.get("role") == "dialog" and n.get("label") == "Настройки" for n in app.tree()), "Cancel did not restore Russian")
             app.rpc("input", events=[{"type": "key", "key": "Escape"}])
             app.wait(lambda: not dialog_open(app), "Escape did not close settings")
-            app.quit("Завершить Plainmark Go")
+            app.quit("Выйти из Plainmark")
         finally:
             app.close()
         assert json.loads(path.read_text())["preferences"] == before, "cancelled preview was persisted"
