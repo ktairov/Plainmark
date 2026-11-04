@@ -101,3 +101,66 @@ func saveFrame(t *testing.T, tt *ui.Tester, dir, name string) {
 		t.Fatal(closeErr)
 	}
 }
+
+func TestSettingsControlsAndThemePreview(t *testing.T) {
+	a, _ := workspaceApp(t)
+	before := a.preferences
+	tt := ui.NewTester(a.view, 1100, 800)
+	tt.Frame()
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("Settings")
+	if !a.settingsOpen || a.settingsSection != "appearance" {
+		t.Fatal("gear did not open appearance settings")
+	}
+	click("Night")
+	if a.preferences.ColorMode != "dark" {
+		t.Fatal("color-mode control did not update preferences")
+	}
+	click("16 px")
+	click("20 px")
+	if a.preferences.ContentFontSize != 20 {
+		t.Fatal("font-size control did not update preferences")
+	}
+	click("Theme")
+	if dir := os.Getenv("PLAINMARK_SNAPSHOTS"); dir != "" {
+		saveFrame(t, tt, dir, "settings-themes-initial.png")
+	}
+	tt.Scroll(800, 500, 0, 300)
+	tt.Frame()
+	click("Night theme: Nord")
+	if a.preferences.NightTheme != "nord" || a.settingsPreviewMode != "dark" {
+		t.Fatalf("night palette did not preview: theme=%s preview=%s", a.preferences.NightTheme, a.settingsPreviewMode)
+	}
+	tt.Scroll(800, 350, 0, -400)
+	tt.Frame()
+	click("Day theme: Gruvbox")
+	if a.preferences.DayTheme != "gruvbox" || a.settingsPreviewMode != "light" || a.preferences.ColorMode != "dark" {
+		t.Fatal("day palette preview changed chosen color mode")
+	}
+	if dir := os.Getenv("PLAINMARK_SNAPSHOTS"); dir != "" {
+		saveFrame(t, tt, dir, "settings-themes.png")
+	}
+	click("Language")
+	click("Русский")
+	if a.preferences.Language != "ru" || !tt.HasText("Используется системный язык") {
+		t.Fatal("language did not update immediately")
+	}
+	click(a.t("Cancel"))
+	if a.settingsOpen || a.preferences != before || a.settingsPreviewMode != "" {
+		t.Fatal("cancel did not restore preferences and clear preview")
+	}
+	a.openSettings()
+	tt.Frame()
+	click("Theme")
+	click("Day theme: Nord")
+	click("Apply")
+	if a.settingsOpen || a.preferences.DayTheme != "nord" || a.preferences.ColorMode != before.ColorMode || a.settingsPreviewMode != "" {
+		t.Fatal("apply did not preserve color mode or clear palette preview")
+	}
+}

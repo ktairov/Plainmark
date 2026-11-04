@@ -61,9 +61,9 @@ class NativeApp:
     def menu(self, *path):
         self.rpc("menu", path=list(path))
 
-    def quit(self):
+    def quit(self, label="Quit Plainmark Go"):
         try:
-            self.menu("Plainmark Go", "Quit Plainmark Go")
+            self.menu("Plainmark Go", label)
         except EOFError:
             pass  # The quit may close the socket before its answer is flushed.
         result = self.process.wait(timeout=15)

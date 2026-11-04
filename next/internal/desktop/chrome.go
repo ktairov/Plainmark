@@ -73,6 +73,9 @@ func (a *App) toolbar(c *ui.Context) {
 		if a.iconButton(c, themeIcon, "Toggle color mode", "toggle-color").Clicked() {
 			a.toggleColor()
 		}
+		if a.iconButton(c, "settings", "Settings", "settings").Disabled(a.busy).Clicked() {
+			a.openSettings()
+		}
 		a.iconButton(c, "ellipsis", "More", "more").PopoverMenuButton(func(m *ui.Menu) {
 			if m.Item(a.t("Settings")).Chosen() {
 				a.openSettings()

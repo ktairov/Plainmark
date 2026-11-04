@@ -33,6 +33,7 @@ go build -o build/plainmark ./cmd/plainmark
 go build -tags e2e -o build/plainmark ./cmd/plainmark
 python3 scripts/smoke.py
 python3 scripts/lifecycle.py
+python3 scripts/settings_ui.py
 ```
 
 Снимки светлого и тёмного просмотра:

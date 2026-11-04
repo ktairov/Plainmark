@@ -80,6 +80,8 @@ type App struct {
 	preferences         settings.Preferences
 	beforePreferences   settings.Preferences
 	settingsOpen        bool
+	settingsSection     string
+	settingsPreviewMode string
 	resolvedLanguage    string
 	nativeLocale        string
 	nativeColor         string
