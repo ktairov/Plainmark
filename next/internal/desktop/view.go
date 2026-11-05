@@ -67,6 +67,10 @@ func (a *App) view(c *ui.Context) {
 	a.preferencesModal(c)
 	a.drawPopup(c)
 	a.flush()
+	if a.refreshNeeded && !a.busy && !a.readingNote {
+		a.refreshNeeded = false
+		a.refresh()
+	}
 	a.syncMenu()
 	a.persistState()
 	a.pumpFiles()

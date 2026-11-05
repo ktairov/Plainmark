@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,6 +241,82 @@ func TestFormCreatesAndTrashProtectsDraft(t *testing.T) {
 	a.deleteConfirmed()
 	if a.session.Find("folder/new.md") != nil {
 		t.Fatal("trashed tab remained")
+	}
+}
+
+func TestNavigationReadKeepsChromeStableAndLatestClickWins(t *testing.T) {
+	a, _ := workspaceApp(t)
+	var queue []func()
+	a.run = func(fn func()) { queue = append(queue, fn) }
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	before := append([]byte(nil), tt.Image().Pix...)
+	a.navigateNote("b.md", "", false)
+	tt.Frame()
+	if a.busy || !a.readingNote || a.session.Active != "a.md" {
+		t.Fatal("navigation blocked the app or discarded the old document while reading")
+	}
+	if !bytes.Equal(before, tt.Image().Pix) {
+		t.Fatal("pending navigation visibly changed the UI before the read finished")
+	}
+	a.navigateNote("folder/child.md", "", false)
+	if len(queue) != 2 {
+		t.Fatal("a second click was blocked while reading")
+	}
+	queue[1]()
+	queue[0]()
+	if a.session.Active != "folder/child.md" || len(a.session.Tabs) != 1 || a.readingNote {
+		t.Fatal("an older read replaced the latest navigation")
+	}
+}
+
+func TestNavigationReadCannotReopenClosedTab(t *testing.T) {
+	a, _ := workspaceApp(t)
+	var queue []func()
+	a.run = func(fn func()) { queue = append(queue, fn) }
+	a.navigateNote("b.md", "", false)
+	a.closeTabs([]string{"a.md"})
+	queue[0]()
+	if len(a.session.Tabs) != 0 || a.readingNote {
+		t.Fatal("an unfinished read reopened a document after Close")
+	}
+}
+
+func TestWatcherRefreshWaitsForNavigationRead(t *testing.T) {
+	a, _ := workspaceApp(t)
+	var queue []func()
+	a.run = func(fn func()) { queue = append(queue, fn) }
+	a.navigateNote("b.md", "", false)
+	a.refresh()
+	if len(queue) != 1 || !a.refreshNeeded {
+		t.Fatal("watcher refresh interrupted a pending navigation")
+	}
+	queue[0]()
+	if a.session.Active != "b.md" || len(queue) != 2 {
+		t.Fatal("navigation or deferred watcher refresh was lost")
+	}
+	queue[1]()
+	if a.busy || a.refreshNeeded || a.readingNote {
+		t.Fatal("refresh did not finish")
+	}
+}
+
+func TestCancelledNavigationDoesNotLoseWatcherRefresh(t *testing.T) {
+	a, _ := workspaceApp(t)
+	var queue []func()
+	a.run = func(fn func()) { queue = append(queue, fn) }
+	a.navigateNote("b.md", "", false)
+	a.refresh()
+	a.activate("a.md")
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	if len(queue) != 2 {
+		t.Fatal("cancelled navigation left the watcher refresh pending")
+	}
+	queue[0]()
+	queue[1]()
+	if a.session.Active != "a.md" || a.busy || a.refreshNeeded || a.readingNote {
+		t.Fatal("cancelled read changed the document or prevented refresh")
 	}
 }
 

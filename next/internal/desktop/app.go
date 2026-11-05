@@ -59,6 +59,8 @@ type App struct {
 	docs                map[*session.Tab]*Document
 	watcher             *workspace.Watcher
 	epoch               uint64
+	navigationVersion   uint64
+	readingNote         bool
 	refreshNeeded       bool
 	busy                bool
 	status              string
@@ -125,6 +127,8 @@ func (a *App) async(work func() (func(), error)) {
 	if a.busy {
 		return
 	}
+	// A newer operation takes precedence over an unfinished note navigation.
+	a.cancelNavigation()
 	a.busy = true
 	epoch := a.epoch
 	a.run(func() {
@@ -207,6 +211,7 @@ func (a *App) guard(paths []string, action func()) {
 	if a.busy {
 		return
 	}
+	a.cancelNavigation()
 	a.flush()
 	if len(a.session.Dirty(paths)) == 0 {
 		action()
@@ -256,6 +261,7 @@ func resolveInitial(path string) (*workspace.Workspace, workspace.Snapshot, *wor
 	return w, s, n, nil
 }
 func (a *App) applyWorkspace(loaded loadedWorkspace) {
+	a.cancelNavigation()
 	a.rememberRoot()
 	w, s := loaded.store, loaded.snapshot
 	a.epoch++
@@ -338,6 +344,7 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 	if a.busy || a.store == nil {
 		return
 	}
+	a.cancelNavigation()
 	if t := a.session.Find(path); t != nil {
 		a.flush()
 		a.activate(path)
@@ -350,19 +357,41 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 	a.flush()
 	previous := a.current()
 	w := a.store
-	a.async(func() (func(), error) {
+	epoch, version := a.epoch, a.navigationVersion
+	a.readingNote = true
+	// Reading a note must not disable and dim the toolbar/tree for one frame.
+	// Keep the old document interactive until the latest requested read finishes.
+	a.run(func() {
 		n, err := w.Read(path)
-		if err != nil {
-			return nil, err
-		}
-		return func() {
+		a.update(func() {
+			if a.epoch != epoch || a.navigationVersion != version {
+				return
+			}
+			a.readingNote = false
+			defer func() {
+				if a.refreshNeeded {
+					a.refreshNeeded = false
+					a.refresh()
+				}
+				a.persistState()
+				a.pumpFiles()
+			}()
+			if err != nil {
+				a.status = err.Error()
+				return
+			}
 			a.flush()
 			d := a.openTabIn(n, session.Preview, newTab || a.current() != previous)
 			d.MD.Anchor = anchor
 			d.MD.AnchorVersion++
 			a.status = "Opened " + path
-		}, nil
+		})
 	})
+}
+
+func (a *App) cancelNavigation() {
+	a.navigationVersion++
+	a.readingNote = false
 }
 func (a *App) chooseFolder() {
 	a.async(func() (func(), error) {
@@ -421,7 +450,7 @@ func (a *App) refresh() {
 	if a.store == nil {
 		return
 	}
-	if a.busy {
+	if a.busy || a.readingNote {
 		a.refreshNeeded = true
 		return
 	}

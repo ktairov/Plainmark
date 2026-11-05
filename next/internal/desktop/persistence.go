@@ -151,7 +151,7 @@ func (a *App) requestQuit() {
 	})
 }
 func (a *App) pumpFiles() {
-	if a.win == nil || a.busy || a.pending != nil || a.form != nil || a.crypto != nil || a.settingsOpen || len(a.pendingFiles) == 0 {
+	if a.win == nil || a.busy || a.readingNote || a.pending != nil || a.form != nil || a.crypto != nil || a.settingsOpen || len(a.pendingFiles) == 0 {
 		return
 	}
 	path := a.pendingFiles[0]
