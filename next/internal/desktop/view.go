@@ -178,9 +178,9 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 			}
 			ui.Icon(c, icons.Get(icon)).Size(14, 14).TextColor(c.Theme().TextMuted)
 			ui.Text(c, f.Name).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-		}).Gap(7).Height(32).Radius(6).Selected(a.activeFolder == f.Path).Drag(fileDrag{f.Path})
+		}).Gap(7).Height(32).Radius(6).TextColor(c.Theme().TextMuted).Drag(fileDrag{f.Path})
 		if a.activeFolder == f.Path {
-			row.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text)
+			row.Background(c.Theme().SurfaceHover)
 		}
 		context := a.pathPopup(c, row, f.Path, true)
 		if row.Clicked() && !context {
