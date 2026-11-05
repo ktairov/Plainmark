@@ -1,26 +1,17 @@
 # Plainmark
 
-Настольное приложение для Markdown-заметок. Текущая реализация: Tauri 2, Rust, React и TypeScript.
-
-Планируется новая реализация на Go и MyGo с сохранением функций, без требования визуального совпадения.
-
-- [План переноса](docs/MIGRATION_PLAN.md)
-- `src/` — текущий интерфейс и логика сессий.
-- `src-tauri/` — текущий Rust backend и конфигурация Tauri.
-- `scripts/` — вспомогательные команды сборки.
-- `next/` — новая реализация Go + MyGo; [запуск и проверки](next/README.md).
-
-## Текущая версия
+Настольное приложение для Markdown-заметок на Go + MyGo с нативным интерфейсом. Исходники находятся в `next/`. Node, Rust и WebView для сборки и запуска приложения не нужны. Linux-пакет требует GTK 3, без WebKitGTK.
 
 ```sh
-npm ci
-npm test
-npm run build
-npm run tauri:dev
+cd next
+go run ./cmd/plainmark
+go test ./...
+go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -skip-dmg
 ```
 
-Для запуска Tauri нужны Rust и системные зависимости Tauri 2. Команда `npm run tauri:build:app` собирает приложение и обновляет счётчик сборки.
+- [Разработка, сборка и проверки](next/README.md)
+- [Arch Linux / Arch Linux ARM](docs/LINUX_ARCH.md)
+- [План миграции](docs/MIGRATION_PLAN.md)
+- [Приёмка](docs/ACCEPTANCE.md)
 
-Текущий `src-tauri/build.rs` вычисляет папку заметок относительно расположения исходников. После переноса проекта в отдельный репозиторий проверьте выбранную папку; для запуска можно явно задать `NOTES_ROOT`.
-
-Lock-файлы npm и Cargo сохраняются в Git. Зависимости, результаты сборки и сгенерированные схемы Tauri исключены через `.gitignore`.
+Оригинальные исходники Tauri/Rust/React удалены из рабочего дерева; контрольная версия сохранена в истории Git, коммит `cb2275f`. Отчёты этапов описывают состояние проекта на момент соответствующих проверок.

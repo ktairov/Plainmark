@@ -54,7 +54,7 @@ PLAINMARK_SNAPSHOTS=/tmp/plainmark-snapshots go test ./internal/desktop -run Sna
 go run ./tools/mathprobe
 ```
 
-Проверка криптографической совместимости с исходным Rust-кодом (требуется Cargo):
+Проверка криптографической совместимости с исходным Rust-кодом из Git-коммита `cb2275f` (требуются Cargo и история Git):
 
 ```sh
 python3 scripts/crypto_compat.py
@@ -62,4 +62,4 @@ python3 scripts/crypto_compat.py
 
 MyGo зафиксирован на v0.7.4, движок формул `go-tex/math` — на v0.50.0. Зависимость Luo-Studio используется только сравнительным инструментом и не импортируется приложением.
 
-Исходная реализация Tauri находится в родительской директории. Функциональный контракт и незавершённые пункты: [план](../docs/MIGRATION_PLAN.md), [приёмка](../docs/ACCEPTANCE.md).
+Исходная реализация Tauri доступна только в истории Git (`cb2275f`). Палитры, переводы, иконки и fixtures новой версии самостоятельны. Linux-пакет не требует WebKitGTK (`linux.webview: false`); инструкция для [Arch Linux ARM](../docs/LINUX_ARCH.md). Функциональный контракт и проверки: [план](../docs/MIGRATION_PLAN.md), [приёмка](../docs/ACCEPTANCE.md).

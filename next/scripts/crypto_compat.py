@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Cross-check the unchanged Rust crypto implementation against Go, both ways.
 
-The temporary Rust harness removes only the two Tauri command attributes and
-provides the AppError constructor. No Tauri GUI or source edits are required.
+The original implementation is read from Git commit cb2275f. The temporary
+Rust harness removes Tauri command attributes and provides AppError.
 """
 import json
 import os
@@ -11,6 +11,11 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_COMMIT = "cb2275f"
+
+
+def legacy_file(path):
+    return subprocess.check_output(["git", "show", f"{LEGACY_COMMIT}:{path}"], cwd=ROOT.parent)
 
 
 def main():
@@ -27,8 +32,8 @@ base64 = "0.22"
 chacha20poly1305 = "0.10"
 zeroize = "1.8"
 ''')
-        (work / "Cargo.lock").write_bytes((ROOT.parent / "src-tauri/Cargo.lock").read_bytes())
-        source = (ROOT.parent / "src-tauri/src/crypto.rs").read_text()
+        (work / "Cargo.lock").write_bytes(legacy_file("src-tauri/Cargo.lock"))
+        source = legacy_file("src-tauri/src/crypto.rs").decode()
         source = source.replace("#[tauri::command]\n", "")
         harness = '''#![allow(dead_code)]
 mod error {

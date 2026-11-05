@@ -1,18 +1,4 @@
-# JavaScript / TypeScript
-node_modules/
-dist/
-.vite/
-coverage/
-*.tsbuildinfo
-
-# Rust / Tauri
-target/
-/src-tauri/gen/schemas/
-/src-tauri/.build-number.lock
-/src-tauri/.tauri-build-*.json
-/src-tauri/build-number.json.*.tmp
-
-# Go / MyGo (new application lives in next/)
+# Go / MyGo
 .mygo/
 /next/build/
 /next/bin/
