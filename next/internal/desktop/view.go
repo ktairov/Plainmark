@@ -185,6 +185,7 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 		context := a.pathPopup(c, row, f.Path, true)
 		if row.Clicked() && !context {
 			a.activeFolder = f.Path
+			*open = !*open
 		}
 		a.dropFolder(row, f.Path)
 	}

@@ -24,10 +24,26 @@ def main():
         base = Path(temp)
         notes = base / "notes"
         notes.mkdir()
+        (notes / "folder").mkdir()
+        (notes / "folder" / "child.md").write_text("# Child\n\nNested document")
         for name, body in {"a": "# First\n\nFirst document", "b": "# Second\n\nFormula $x_i^2 + \\frac{1}{2}$", "c": "# Third\n\nThird document"}.items():
             (notes / (name + ".md")).write_text(body)
         app = NativeApp(binary, base, base / "config", notes)
         try:
+            def child_visible():
+                return any(n.get("key") == "note:folder/child.md" for n in app.tree())
+
+            assert not child_visible(), "folder should start collapsed"
+            app.click("folder:folder")
+            app.wait(child_visible, "clicking the folder row did not expand it")
+            app.click("folder:folder")
+            app.wait(lambda: not child_visible(), "clicking the folder row did not collapse it")
+            # The native TreeItem arrow handles its own click; the row must not toggle twice.
+            for expanded in (True, False):
+                row = next(n for n in app.tree() if n.get("key") == "folder:folder")
+                box = row["bounds"]
+                app.rpc("input", events=[{"type": "click", "x": box["x"] + 12, "y": box["y"] + box["height"] / 2}])
+                app.wait(lambda: child_visible() == expanded, "folder arrow did not toggle exactly once")
             app.click("note:b.md")
             app.wait(lambda: active(app, "Second", 1), "plain click did not replace the clean tab")
             app.click("note:a.md", ["cmd"])
@@ -54,7 +70,7 @@ def main():
         finally:
             app.close()
         assert (notes / "c.md").read_text() == "# Third\n\nThird document", "discard overwrote the note"
-        print("PASS: native plain click replaces, Cmd-click adds, existing tabs deduplicate, dirty draft survives, discard keeps disk unchanged")
+        print("PASS: folder row/arrow expand and collapse, plain click replaces, Cmd-click adds, existing tabs deduplicate, dirty draft survives, discard keeps disk unchanged")
 
 
 if __name__ == "__main__":
