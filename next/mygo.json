@@ -9,6 +9,10 @@
   "fileAssociations": [
     { "ext": ["md", "mdx"], "name": "Markdown Note", "mimeType": "text/markdown", "role": "Editor" }
   ],
+  "linux": {
+    "webview": false,
+    "command": "plainmark-go"
+  },
   "macos": {
     "icon": "resources/icon.icns",
     "minimumSystemVersion": "12.0",
