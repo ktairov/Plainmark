@@ -298,7 +298,7 @@ func (a *App) edit(c *ui.Context, d *Document) {
 }
 
 func (a *App) tabs(c *ui.Context) ui.Element {
-	return ui.ScrollHorizontal(c).Grow(1).MinWidth(0).FillHeight().Children(func() {
+	strip := ui.ScrollHorizontal(c).Key("tab-strip").Grow(1).MinWidth(0).FillHeight().Children(func() {
 		ui.Row(c).Gap(3).Padding(0, 2).Height(max(float32(44), c.TitleBar().Height)).AlignItems(ui.Center).Children(func() {
 			for _, tab := range slices.Clone(a.session.Tabs) {
 				tabRow := ui.Row(c).Key(tab).Drag(tabDrag{tab.Note.Path}).AlignItems(ui.Center).Radius(7).Width(190).MinWidth(104).MaxWidth(220).Height(28)
@@ -326,6 +326,7 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 					if button.Clicked() {
 						a.activate(tab.Note.Path)
 					}
+					a.headerDoubleClick(button)
 					if drag, ok := ui.Drop[tabDrag](button); ok {
 						a.session.Reorder(drag.Path, tab.Note.Path)
 					}
@@ -350,7 +351,10 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 						a.closeTabs([]string{tab.Note.Path})
 					}
 				})
+				a.headerDoubleClick(tabRow)
 			}
 		})
 	})
+	a.headerDoubleClick(strip)
+	return strip
 }

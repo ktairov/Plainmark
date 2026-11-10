@@ -96,3 +96,11 @@ func (a *App) windowButton(c *ui.Context, icon, label, key string) ui.Element {
 	button.Children(func() { ui.Icon(c, icons.Get(icon)).Size(16, 16) })
 	return button
 }
+
+// Interactive tabs consume the title bar's pointer events, so handle their
+// double clicks explicitly without turning their drag source into a window drag.
+func (a *App) headerDoubleClick(element ui.Element) {
+	if element.DoubleClicked() && a.win != nil {
+		a.win.ToggleMaximize()
+	}
+}

@@ -40,6 +40,7 @@ python3 scripts/navigation.py
 python3 scripts/menu_ui.py
 python3 scripts/restoration.py
 python3 scripts/appearance_ui.py
+python3 scripts/titlebar_ui.py
 ```
 
 Снимки светлого и тёмного просмотра:
