@@ -34,13 +34,22 @@ func TestEditorPreviewAndSave(t *testing.T) {
 	if !a.current().Code.Buffer.Modified() {
 		t.Fatal("editing did not mark buffer dirty")
 	}
+	if !tt.HasText("Unsaved changes") {
+		t.Fatal("dirty tab has no unsaved indicator")
+	}
 	tt.Command("undo")
 	if !strings.Contains(a.current().Code.Buffer.String(), "Исходный") {
 		t.Fatal("undo did not restore document")
 	}
+	if tt.HasText("Unsaved changes") {
+		t.Fatal("undo to saved content left the unsaved indicator")
+	}
 	tt.Command("redo")
 	if !strings.Contains(a.current().Code.Buffer.String(), "Изменённый") {
 		t.Fatal("redo lost Unicode edit")
+	}
+	if !tt.HasText("Unsaved changes") {
+		t.Fatal("redo did not restore the unsaved indicator")
 	}
 	tt.Command("selectAll")
 	tt.Command("copy")
@@ -62,6 +71,9 @@ func TestEditorPreviewAndSave(t *testing.T) {
 	}
 	if string(data) != a.current().Code.Buffer.String() || a.current().Code.Buffer.Modified() {
 		t.Fatal("save did not persist draft and mark it saved")
+	}
+	if tt.HasText("Unsaved changes") {
+		t.Fatal("successful save left the unsaved indicator")
 	}
 	info, err := os.Stat(path)
 	if err != nil {

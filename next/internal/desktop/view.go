@@ -310,12 +310,11 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 					}
 				}
 				tabRow.Children(func() {
-					label := tab.Note.Title
-					if tab.Dirty() {
-						label += " •"
-					}
 					button := ui.ButtonBase(c).Height(28).Grow(1).MinWidth(0).Justify(ui.Start).Padding(0, 10).TextColor(c.Theme().TextMuted).Children(func() {
-						ui.Text(c, label).SingleLine().MaxWidth(180).Ellipsis("…")
+						ui.Text(c, tab.Note.Title).SingleLine().MaxWidth(180).MinWidth(0).Shrink(1).Ellipsis("…")
+						if tab.Dirty() {
+							ui.Box(c).Key("tab-dirty:"+tab.Note.Path).Size(6, 6).Shrink(0).Radius(3).Margin(0, 0, 0, 6).Background(c.Theme().Accent).Role(ui.RoleImage).Label(a.t("Unsaved changes"))
+						}
 					}).Label(a.t("Tab {title}", "title", tab.Note.Title)).Selected(a.session.Active == tab.Note.Path).Tooltip(tab.Note.Path)
 					if a.session.Active == tab.Note.Path {
 						button.Background(ui.Transparent).TextColor(c.Theme().Text)
