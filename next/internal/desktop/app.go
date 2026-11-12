@@ -49,6 +49,7 @@ type pendingAction struct {
 	action func()
 }
 type pathForm struct{ operation, path, value string }
+type noteRead struct{ newTab bool }
 
 type App struct {
 	win                 *mygo.Window
@@ -60,6 +61,7 @@ type App struct {
 	watcher             *workspace.Watcher
 	epoch               uint64
 	navigationVersion   uint64
+	noteReads           map[*noteRead]struct{}
 	readingNote         bool
 	refreshNeeded       bool
 	busy                bool
@@ -174,9 +176,14 @@ func (a *App) openTabIn(n workspace.Note, mode session.Mode, newTab bool) *Docum
 	if previous != nil && a.session.Find(previous.Note.Path) == nil {
 		delete(a.docs, previous)
 	}
+	return a.documentFor(t)
+}
+
+func (a *App) documentFor(t *session.Tab) *Document {
 	if d := a.docs[t]; d != nil {
 		return d
 	}
+	n := t.Note
 	b := editor.NewBuffer(n.Markdown)
 	b.SetLanguage(editor.LanguageFor(n.Path))
 	b.MarkSaved()
@@ -344,7 +351,7 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 	if a.busy || a.store == nil {
 		return
 	}
-	a.cancelNavigation()
+	a.cancelReplacementReads()
 	if t := a.session.Find(path); t != nil {
 		a.flush()
 		a.activate(path)
@@ -358,18 +365,24 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 	previous := a.current()
 	w := a.store
 	epoch, version := a.epoch, a.navigationVersion
+	request := &noteRead{newTab: newTab}
+	if a.noteReads == nil {
+		a.noteReads = map[*noteRead]struct{}{}
+	}
+	a.noteReads[request] = struct{}{}
 	a.readingNote = true
 	// Reading a note must not disable and dim the toolbar/tree for one frame.
 	// Keep the old document interactive until the latest requested read finishes.
 	a.run(func() {
 		n, err := w.Read(path)
 		a.update(func() {
-			if a.epoch != epoch || a.navigationVersion != version {
+			if _, pending := a.noteReads[request]; !pending || a.epoch != epoch {
 				return
 			}
-			a.readingNote = false
+			delete(a.noteReads, request)
+			a.readingNote = len(a.noteReads) > 0
 			defer func() {
-				if a.refreshNeeded {
+				if a.refreshNeeded && !a.readingNote {
 					a.refreshNeeded = false
 					a.refresh()
 				}
@@ -381,9 +394,22 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 				return
 			}
 			a.flush()
-			d := a.openTabIn(n, session.Preview, newTab || a.current() != previous)
-			d.MD.Anchor = anchor
-			d.MD.AnchorVersion++
+			alreadyOpen := a.session.Find(n.Path) != nil
+			var d *Document
+			if version == a.navigationVersion {
+				d = a.openTabIn(n, session.Preview, newTab || a.current() != previous)
+			} else {
+				// Earlier explicit new-tab requests still open, but never steal
+				// focus from a newer click or an already-open tab selection.
+				active := a.session.Active
+				tab := a.session.Open(n, session.Preview)
+				a.session.Active = active
+				d = a.documentFor(tab)
+			}
+			if version == a.navigationVersion || !alreadyOpen {
+				d.MD.Anchor = anchor
+				d.MD.AnchorVersion++
+			}
 			a.status = "Opened " + path
 		})
 	})
@@ -391,7 +417,18 @@ func (a *App) navigateNote(path, anchor string, newTab bool) {
 
 func (a *App) cancelNavigation() {
 	a.navigationVersion++
+	clear(a.noteReads)
 	a.readingNote = false
+}
+
+func (a *App) cancelReplacementReads() {
+	a.navigationVersion++
+	for request := range a.noteReads {
+		if !request.newTab {
+			delete(a.noteReads, request)
+		}
+	}
+	a.readingNote = len(a.noteReads) > 0
 }
 func (a *App) chooseFolder() {
 	a.async(func() (func(), error) {

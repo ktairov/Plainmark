@@ -174,7 +174,7 @@ func (a *App) lockAll() {
 	}
 }
 func (a *App) activate(path string) {
-	a.cancelNavigation()
+	a.cancelReplacementReads()
 	if a.session.Active != path {
 		a.lockAll()
 	}

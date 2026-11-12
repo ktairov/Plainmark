@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -279,6 +280,72 @@ func TestNavigationReadCannotReopenClosedTab(t *testing.T) {
 	queue[0]()
 	if len(a.session.Tabs) != 0 || a.readingNote {
 		t.Fatal("an unfinished read reopened a document after Close")
+	}
+}
+
+func TestRapidNewTabRequestsSurviveEitherCompletionOrder(t *testing.T) {
+	for _, reverse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reverse=%t", reverse), func(t *testing.T) {
+			a, _ := workspaceApp(t)
+			var queue []func()
+			a.run = func(fn func()) { queue = append(queue, fn) }
+			a.navigateNote("b.md", "", true)
+			a.navigateNote("folder/child.md", "", true)
+			if reverse {
+				queue[1]()
+				if !a.readingNote {
+					t.Fatal("another read is still pending")
+				}
+				queue[0]()
+			} else {
+				queue[0]()
+				if !a.readingNote {
+					t.Fatal("another read is still pending")
+				}
+				queue[1]()
+			}
+			if len(a.session.Tabs) != 3 || a.session.Find("b.md") == nil || a.session.Active != "folder/child.md" || a.readingNote || a.busy {
+				t.Fatal("new-tab request was lost or an older read stole focus")
+			}
+		})
+	}
+}
+
+func TestNewTabReadSurvivesLaterNavigationWithoutStealingFocus(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("existing=%t", existing), func(t *testing.T) {
+			a, _ := workspaceApp(t)
+			var queue []func()
+			a.run = func(fn func()) { queue = append(queue, fn) }
+			a.navigateNote("b.md", "", true)
+			if existing {
+				a.activate("a.md")
+			} else {
+				a.navigateNote("folder/child.md", "", false)
+				queue[1]()
+			}
+			active := a.session.Active
+			queue[0]()
+			if a.session.Find("b.md") == nil || a.session.Active != active || a.readingNote {
+				t.Fatal("new-tab request was discarded or changed the later selection")
+			}
+		})
+	}
+}
+
+func TestDuplicatePendingNewTabRequestsDoNotDuplicateDocuments(t *testing.T) {
+	a, _ := workspaceApp(t)
+	var queue []func()
+	a.run = func(fn func()) { queue = append(queue, fn) }
+	a.navigateNote("b.md", "older-anchor", true)
+	a.navigateNote("b.md", "latest-anchor", true)
+	queue[1]()
+	queue[0]()
+	if len(a.session.Tabs) != 2 || len(a.docs) != 2 || a.readingNote {
+		t.Fatal("duplicate reads produced duplicate tabs or documents")
+	}
+	if a.current().MD.Anchor != "latest-anchor" {
+		t.Fatal("an older duplicate request replaced the latest anchor")
 	}
 }
 
