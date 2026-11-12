@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui/editor"
@@ -84,12 +85,7 @@ func (a *App) persistState() {
 		a.status = "Settings: " + err.Error()
 		return
 	}
-	if string(data) == a.stateFingerprint {
-		return
-	}
-	if a.writer.Queue(data) {
-		a.stateFingerprint = string(data)
-	}
+	a.writer.Queue(data)
 }
 func (a *App) readState(path string) error {
 	s, err := settings.Load(path)
@@ -110,14 +106,20 @@ func (a *App) readState(path string) error {
 	}
 	return nil
 }
-func (a *App) watchStateErrors() {
+func (a *App) watchStateWrites() {
 	writer := a.writer
 	if writer == nil {
 		return
 	}
 	a.run(func() {
-		for err := range writer.Errors {
-			a.update(func() { a.status = "Settings: " + err.Error() })
+		for err := range writer.Results {
+			a.update(func() {
+				if err != nil {
+					a.status = "Settings: " + err.Error()
+				} else if strings.HasPrefix(a.status, "Settings: ") {
+					a.status = ""
+				}
+			})
 		}
 	})
 }

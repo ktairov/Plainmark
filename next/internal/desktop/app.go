@@ -98,7 +98,6 @@ type App struct {
 	focusSearch         bool
 	saved               settings.State
 	writer              *settings.Writer
-	stateFingerprint    string
 	windowStateLoaded   bool
 	popup               *popupState
 	popupReturnID       string
@@ -646,7 +645,7 @@ func Run(path string) error {
 		options.Content = ui.View(a.view)
 		a.win = mygo.NewWindow(options)
 		a.installMenu()
-		a.watchStateErrors()
+		a.watchStateWrites()
 		if a.store != nil {
 			w := a.store
 			a.async(func() (func(), error) {

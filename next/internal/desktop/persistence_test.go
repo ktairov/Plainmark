@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -14,6 +15,51 @@ import (
 	"plainmark/internal/session"
 	"plainmark/internal/settings"
 )
+
+func TestPersistenceRecoversWithoutChangingCapturedState(t *testing.T) {
+	a, _ := workspaceApp(t)
+	parent := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(parent, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(parent, "state.json")
+	a.writer = settings.NewWriter(path)
+	defer a.writer.Close()
+	a.preferences.ContentFontSize = 21
+	a.persistState()
+	select {
+	case err := <-a.writer.Results:
+		if err == nil {
+			t.Fatal("expected the initial write to fail")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial write did not finish")
+	}
+	if err := os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(parent, 0700); err != nil {
+		t.Fatal(err)
+	}
+	a.persistState() // exactly the same settings/navigation as the failed write
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case err := <-a.writer.Results:
+			if err != nil {
+				continue
+			}
+			state, err := settings.Load(path)
+			if err != nil || state.Preferences.ContentFontSize != 21 {
+				t.Fatalf("unchanged state lost after recovery: %v %+v", err, state.Preferences)
+			}
+			return
+		case <-timer.C:
+			t.Fatal("unchanged state was never retried")
+		}
+	}
+}
 
 func TestOwnStateRestoresTabsPreferencesAndLayoutWithoutDocumentData(t *testing.T) {
 	a, root := workspaceApp(t)
