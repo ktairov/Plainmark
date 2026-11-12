@@ -26,6 +26,8 @@ type Document struct {
 	Code               *editor.State
 	MD                 markdown.Options
 	Scroll             ui.ScrollState
+	draftVersion       uint64
+	draftReady         bool
 	previewVersion     uint64
 	previewSource      string
 	previewReady       bool
@@ -156,11 +158,13 @@ func (a *App) async(work func() (func(), error)) {
 }
 func (a *App) flush() {
 	for _, d := range a.docs {
-		if d.Code.Buffer.Modified() {
-			d.Tab.Draft = d.Code.Buffer.String()
-		} else {
-			d.Tab.Draft = session.Normalize(d.Tab.Note.Markdown)
+		if version := d.Code.Buffer.Version(); d.draftReady && version == d.draftVersion {
+			continue
 		}
+		// An immutable snapshot keeps text and version from the same revision.
+		snapshot := d.Code.Buffer.Snapshot()
+		d.Tab.Draft = snapshot.String()
+		d.draftVersion, d.draftReady = snapshot.Version(), true
 	}
 }
 func (a *App) openTab(n workspace.Note, mode session.Mode) *Document {
@@ -187,6 +191,7 @@ func (a *App) documentFor(t *session.Tab) *Document {
 	b.SetLanguage(editor.LanguageFor(n.Path))
 	b.MarkSaved()
 	d := &Document{Tab: t, Code: &editor.State{Buffer: b, SoftWrap: true}, MD: markdown.Options{Extensions: parser.Default | parser.ExtDollarMath}, Unlocked: map[string]string{}}
+	d.draftVersion, d.draftReady = b.Version(), true
 	a.docs[t] = d
 	return d
 }
