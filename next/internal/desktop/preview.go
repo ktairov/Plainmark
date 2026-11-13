@@ -56,7 +56,10 @@ func (d *Document) preparePreview() {
 func (a *App) preview(c *ui.Context, d *Document) {
 	d.preparePreview()
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-		ui.FindBar(c, &d.FindOpen, &d.Query, len(d.Matches), &d.Match)
+		if ui.FindBar(c, &d.FindOpen, &d.Query, len(d.Matches), &d.Match).Changed() {
+			// A navigation request must reveal even a single match again.
+			d.searchRevision++
+		}
 		d.preparePreview()
 		a.math.Configure(&d.MD, c.Theme().Text, float32(a.preferences.ContentFontSize)*1.25)
 		d.MD.Theme = a.readingTheme(c.Theme())
@@ -81,23 +84,28 @@ func (a *App) preview(c *ui.Context, d *Document) {
 			}
 			a.navigateNote(path, anchor, c.Modifiers()&(ui.Cmd|ui.Ctrl) != 0)
 		}
-		active := -1
-		if d.Tab.Mode == session.Split {
-			active = preview.BlockAtLine(d.previewDoc, d.previewSource, d.Code.CursorPos().Line+1)
-		}
-		selected := -1
-		if d.FindOpen && len(d.Matches) > 0 {
-			selected = preview.BlockAtLine(d.previewDoc, d.previewSource, d.Matches[d.Match].Line)
-		}
+		active, selected, mapped := -1, -1, false
 		needsScroll := d.FindOpen && d.searchRevision != d.scrolledRevision
 		d.MD.Block = func(c *ui.Context, doc *parser.Document, index int) bool {
+			if !mapped {
+				mapped = true
+				if d.Tab.Mode == session.Split {
+					active = preview.BlockAtLine(doc, doc.Source(), d.Code.CursorPos().Line+1)
+				}
+				if d.FindOpen && len(d.Matches) > 0 {
+					selected = preview.BlockAtLine(doc, doc.Source(), d.Matches[d.Match].Line)
+				}
+			}
 			if index == active {
 				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(c.Theme().Accent.Alpha(.08)).BorderStartWidth(2).BorderColor(c.Theme().Accent).PassThrough()
 			}
 			if index == selected {
-				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Border(1, c.Theme().Accent).PassThrough()
+				// The highlight is also a stable, full-block reveal target. A
+				// conditional target disappears during eager input rebuilds,
+				// losing the pending scroll before layout can apply it.
+				target := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Border(1, c.Theme().Accent).PassThrough()
 				if needsScroll {
-					ui.Box(c).Absolute().Top(0).Left(0).Size(1, 1).PassThrough().ScrollIntoView()
+					target.ScrollIntoView()
 				}
 			}
 			return false

@@ -37,6 +37,99 @@ func TestPreviewSearchMarkupCountNavigationAndSourceIntegrity(t *testing.T) {
 		t.Fatal("Escape did not close find bar")
 	}
 }
+
+func TestPreviewFindArrowButtonsRevealMatches(t *testing.T) {
+	a, _ := workspaceApp(t)
+	source := "# Search\n\nFirst needle here.\n\n" + strings.Repeat("Filler paragraph.\n\n", 60) + "Last needle here.\n"
+	a.setDocument("search.md", []byte(source))
+	d := a.current()
+	d.Tab.Mode = session.Preview
+	tt := ui.NewTester(a.view, 1000, 500)
+	tt.Frame()
+	a.find()
+	tt.Frame()
+	tt.Type("needle")
+	if len(d.Matches) != 2 {
+		t.Fatalf("wrong matches: %d", len(d.Matches))
+	}
+	for _, step := range []struct {
+		button, text string
+		match        int
+	}{
+		{"Next", "Last needle here.", 1},
+		{"Previous", "First needle here.", 0},
+		{"Previous", "Last needle here.", 1},
+	} {
+		if err := tt.Click(step.button); err != nil {
+			t.Fatal(err)
+		}
+		if d.Match != step.match {
+			t.Fatalf("%s: match=%d", step.button, d.Match)
+		}
+		r, ok := tt.Find(step.text)
+		if !ok || r.H < 26 || r.Y < 40 || r.Y+r.H > 500 {
+			t.Errorf("%s: current match is off screen: %+v, scroll=%v", step.button, r, d.Scroll.Y)
+		}
+		if !strings.Contains(d.previewSource, "<mark><u>needle</u></mark>") {
+			t.Error("current match is not highlighted")
+		}
+	}
+}
+func TestPreviewFindSingleMatchRevealsAgain(t *testing.T) {
+	a, _ := workspaceApp(t)
+	a.setDocument("search.md", []byte(strings.Repeat("Filler paragraph.\n\n", 60)+"Only needle here.\n"))
+	d := a.current()
+	d.Tab.Mode = session.Preview
+	tt := ui.NewTester(a.view, 1000, 500)
+	tt.Frame()
+	a.find()
+	tt.Frame()
+	tt.Type("needle")
+	for _, button := range []string{"Next", "Previous"} {
+		d.Scroll.Y = 0
+		tt.Frame()
+		if d.Scroll.Y != 0 {
+			t.Fatal("search keeps overriding manual scroll")
+		}
+		if err := tt.Click(button); err != nil {
+			t.Fatal(err)
+		}
+		if d.Scroll.Y <= 0 {
+			t.Fatalf("%s did not reveal the sole match again", button)
+		}
+	}
+}
+
+func TestEditorFindArrowsSelectAndReveal(t *testing.T) {
+	a, _ := workspaceApp(t)
+	a.setDocument("search.md", []byte("First needle here.\n"+strings.Repeat("Filler paragraph.\n", 120)+"Last needle here.\n"))
+	d := a.current()
+	d.Tab.Mode = session.Edit
+	tt := ui.NewTester(a.view, 1000, 500)
+	tt.Frame()
+	d.Code.Find("needle")
+	tt.Frame()
+	for _, step := range []struct {
+		button string
+		match  int
+	}{
+		{"Next match", 1},
+		{"Previous match", 0},
+		{"Previous match", 1},
+	} {
+		if err := tt.Click(step.button); err != nil {
+			t.Fatal(err)
+		}
+		n, current := d.Code.FindMatches()
+		if n != 2 || current != step.match || d.Code.SelectedText() != "needle" {
+			t.Fatalf("%s: matches=%d current=%d selection=%q", step.button, n, current, d.Code.SelectedText())
+		}
+		if (d.Code.ScrollY() > 100) != (step.match == 1) {
+			t.Fatalf("%s: scroll=%v", step.button, d.Code.ScrollY())
+		}
+	}
+}
+
 func TestNoteLinksAndMetadata(t *testing.T) {
 	a, root := workspaceApp(t)
 	if err := os.WriteFile(filepath.Join(root, "a.md"), []byte("---\ntitle: Hidden metadata\n---\n<!-- private -->\n# Start\n\nGo to [Child](folder/child.md#content)"), 0600); err != nil {
