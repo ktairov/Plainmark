@@ -9,6 +9,8 @@ go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -skip-dmg
 open "build/release/darwin-arm64/Plainmark Go.app"
 ```
 
+Для Linux и Windows (AMD64 и ARM64): `make cross` из этой папки. Все цели используют один `mygo.json`; команды отдельных сборок и установщиков приведены в [BUILDING.md](../docs/BUILDING.md).
+
 Готовая локальная сборка 0.2.0 для Apple Silicon: `build/release/darwin-arm64/Plainmark Go.app`. Для её запуска Go не нужен. Используется локальная ad-hoc подпись; нотариализация Apple не выполнялась. Проверки выполнены на текущем Mac, проверка другого компьютера остаётся частью приёмки.
 
 Перенесены Lucide-иконки, компактная панель инструментов, оформление вкладок и дерева. Панель встроена в заголовок macOS; подробнее в [отчёте оформления](../docs/STAGE_6.md).
