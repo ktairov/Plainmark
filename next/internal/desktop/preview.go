@@ -3,6 +3,7 @@ package desktop
 import (
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -46,6 +47,7 @@ func (d *Document) preparePreview() {
 			d.Match = 0
 		}
 		d.previewDoc = parser.Parse(d.previewSource)
+		d.listMarkerDigits = orderedListDigits(d.previewDoc)
 		d.previewReady = true
 		d.lastQuery, d.lastMatch, d.lastUnlockRevision = query, d.Match, d.unlockRevision
 		d.searchRevision++
@@ -58,6 +60,7 @@ func (a *App) preview(c *ui.Context, d *Document) {
 		d.preparePreview()
 		a.math.Configure(&d.MD, c.Theme().Text, float32(a.preferences.ContentFontSize)*1.25)
 		d.MD.Theme = a.readingTheme(c.Theme())
+		fitListMarkers(c, d.MD.Theme, d.listMarkerDigits)
 		if a.store != nil {
 			d.MD.LoadImage = markdown.FileImages(filepath.Join(a.store.Root(), filepath.FromSlash(parent(d.Tab.Note.Path))))
 		}
@@ -118,6 +121,36 @@ func (a *App) preview(c *ui.Context, d *Document) {
 		})
 		d.scrolledRevision = d.searchRevision
 	})
+}
+
+func orderedListDigits(doc *parser.Document) int {
+	digits := 0
+	for i := 1; i < doc.Len(); i++ {
+		list := doc.Block(i)
+		if list.Kind != parser.List || !list.Ordered {
+			continue
+		}
+		count := 0
+		for item := i + 1; item < list.Next; item = doc.Block(item).Next {
+			count++
+		}
+		digits = max(digits, len(strconv.Itoa(list.Number+max(0, count-1))))
+	}
+	return digits
+}
+
+func fitListMarkers(c *ui.Context, theme *markdown.Theme, digits int) {
+	if digits == 0 {
+		return
+	}
+	// MyGo v0.7.4 measures ordered markers without tnum, then renders with
+	// tnum. Reserve the actual tabular width plus its 0.4em gap and rounding
+	// allowance, including lists that cross a digit boundary (99 -> 100).
+	for _, delimiter := range []string{".", ")"} {
+		width, _ := c.MeasureText(0, ui.Span{Text: strings.Repeat("9", digits) + delimiter,
+			Font: theme.Font, Size: theme.FontSize, Features: "tnum"})
+		theme.ListIndent = max(theme.ListIndent, (width+1)/theme.FontSize+0.4)
+	}
 }
 
 func (a *App) readingTheme(theme *ui.Theme) *markdown.Theme {

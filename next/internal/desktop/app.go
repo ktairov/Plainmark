@@ -33,6 +33,7 @@ type Document struct {
 	previewReady       bool
 	cleanSource        string
 	previewDoc         *parser.Document
+	listMarkerDigits   int
 	FindOpen           bool
 	Query              string
 	Match              int
