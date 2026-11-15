@@ -125,7 +125,7 @@ func (a *App) watchStateWrites() {
 }
 func (a *App) windowOptions() mygo.WindowOptions {
 	b := a.saved.Window
-	return mygo.WindowOptions{Title: "Plainmark Go", Width: b.Width, Height: b.Height, StateKey: "main", MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44, TrafficLightPosition: &mygo.Point{X: 12, Y: 14}}
+	return mygo.WindowOptions{Title: "Plainmark", Width: b.Width, Height: b.Height, StateKey: "main", MinWidth: 880, MinHeight: 620, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44, TrafficLightPosition: &mygo.Point{X: 12, Y: 14}}
 }
 
 // MyGo captures settled normal bounds and window mode before OnQuit. Keep its

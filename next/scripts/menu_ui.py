@@ -20,7 +20,7 @@ def main():
         (notes / "b.md").write_text("# Second\n\nSecond document")
         app = NativeApp(binary, base, base / "config", notes)
         try:
-            app.menu("Plainmark Go", "Settings…")
+            app.menu("Plainmark", "Settings…")
             app.wait(lambda: any(n.get("role") == "dialog" for n in app.tree()), "Settings is missing from the application menu")
             app.rpc("act", key="cancel-settings", action="press")
             app.wait(lambda: not any(n.get("role") == "dialog" for n in app.tree()), "settings did not close")
@@ -61,7 +61,7 @@ def main():
             app.wait(lambda: any(n.get("label") == "Tab First" and "checked" in n.get("states", []) for n in app.tree()), "Previous Tab failed")
             app.menu("Window", "Close Other Tabs")
             app.wait(lambda: len([n for n in app.tree() if n.get("label", "").startswith("Tab ")]) == 1, "Close Other Tabs failed")
-            app.menu("Plainmark Go", "Settings…")
+            app.menu("Plainmark", "Settings…")
             app.wait(lambda: any(n.get("role") == "dialog" for n in app.tree()), "settings missing")
             app.rpc("act", key="settings-section-language", action="press")
             app.wait(lambda: any(n.get("key") == "settings-language-select" for n in app.tree()), "language section missing")

@@ -9,6 +9,57 @@ import (
 	"time"
 )
 
+func TestRenamedProfileKeepsLegacyStateAndPrefersNewState(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PLAINMARK_CONFIG_DIR", "")
+	path, err := ConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(filepath.Dir(path)) != "Plainmark" {
+		t.Fatalf("unexpected profile path: %s", path)
+	}
+	legacy := filepath.Join(filepath.Dir(filepath.Dir(path)), "Plainmark-Go", "state.json")
+	s := NewState()
+	s.Window.Width = 1337
+	s.Root = t.TempDir()
+	s.Roots[s.Root] = RootState{Tabs: []StoredTab{{Path: "note.md", Mode: "split", PreviewY: 250}}, Active: "note.md"}
+	data, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(legacy, data); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil || loaded.Window.Width != 1337 || len(loaded.Roots[s.Root].Tabs) != 1 {
+		t.Fatalf("legacy state not restored: %+v, %v", loaded, err)
+	}
+	s.Window.Width = 1444
+	data, _ = json.Marshal(s)
+	if err := Save(path, data); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = Load(path)
+	if err != nil || loaded.Window.Width != 1444 {
+		t.Fatalf("new state did not take precedence: %+v, %v", loaded, err)
+	}
+	if err := os.WriteFile(path, []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("invalid new state silently fell back to legacy state")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PLAINMARK_CONFIG_DIR", filepath.Dir(path))
+	if _, err := Load(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("explicit profile fell back to legacy state: %v", err)
+	}
+}
+
 func TestWriterFlushesLastStateAndNormalizesNavigation(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(t.TempDir(), "config/state.json")

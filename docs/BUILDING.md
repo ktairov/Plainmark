@@ -19,7 +19,7 @@ make cross
 
 В Linux-папках MyGo создаёт бинарник, `.desktop`, архив с install.sh, `.deb` и PKGBUILD с иконками для Arch. Установка на Arch описана в [LINUX_ARCH.md](LINUX_ARCH.md).
 
-В Windows-папках находятся `Plainmark Go.exe` и ресурсы приложения. Для переноса portable-сборки можно упаковать всю папку. Иконка exe генерируется MyGo из общего PNG; отдельный ICO-конфиг не требуется.
+В Windows-папках находятся `Plainmark.exe` и ресурсы приложения. Для переноса portable-сборки можно упаковать всю папку. Иконка exe генерируется MyGo из общего PNG; отдельный ICO-конфиг не требуется.
 
 Без Make (например, из PowerShell) выполняется та же команда:
 
@@ -33,7 +33,7 @@ go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform linux/amd64,linux/
 go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform windows/amd64,windows/arm64
 ```
 
-MyGo создаёт установщики `plainmark-go-setup-0.2.0-amd64.exe` и `plainmark-go-setup-0.2.0-arm64.exe`. Без NSIS на macOS он пропускает этот шаг. Подпись Windows и её сертификаты — отдельная настройка для распространяемого выпуска.
+MyGo создаёт установщики `plainmark-setup-0.2.0-amd64.exe` и `plainmark-setup-0.2.0-arm64.exe`. Без NSIS на macOS он пропускает этот шаг. Подпись Windows и её сертификаты — отдельная настройка для распространяемого выпуска.
 
 Кросс-компиляция не подтверждает работу GUI. Проверять запуск, системные меню, диалоги, шрифты, clipboard, watcher, корзину и восстановление окна нужно на целевых системах. Пока GUI проверен на текущем Mac; Linux и Windows требуют такой проверки.
 

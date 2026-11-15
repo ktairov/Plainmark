@@ -1,7 +1,7 @@
 {
-  "name": "Plainmark Go",
-  "slug": "plainmark-go",
-  "identifier": "com.plainmark.go",
+  "name": "Plainmark",
+  "slug": "plainmark",
+  "identifier": "com.plainmark.app",
   "version": "0.2.0",
   "main": "./cmd/plainmark",
   "icon": "resources/icon.png",
@@ -11,7 +11,7 @@
   ],
   "linux": {
     "webview": false,
-    "command": "plainmark-go"
+    "command": "plainmark"
   },
   "macos": {
     "icon": "resources/icon.icns",

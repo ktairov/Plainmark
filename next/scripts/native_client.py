@@ -73,7 +73,7 @@ class NativeApp:
 
     def quit(self, label="Quit Plainmark"):
         try:
-            self.menu("Plainmark Go", label)
+            self.menu("Plainmark", label)
         except EOFError:
             pass  # The quit may close the socket before its answer is flushed.
         result = self.process.wait(timeout=15)

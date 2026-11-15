@@ -53,7 +53,7 @@ def main():
             app.rpc("act", key="editor", action="focus")
             app.rpc("input", events=[{"type": "key", "key": "CmdOrCtrl+A"}, {"type": "text", "text": "# Unsaved lifecycle draft"}])
             app.rpc("idle", timeout=10000)
-            app.menu("Plainmark Go", "Quit Plainmark")
+            app.menu("Plainmark", "Quit Plainmark")
             app.wait(lambda: any(n.get("label") == "Unsaved changes" for n in app.tree()), "Quit did not protect dirty document")
             cancel = next(n for n in app.tree() if n.get("label") == "Cancel" and n.get("role") == "button")
             app.rpc("act", id=cancel["id"], action="press")

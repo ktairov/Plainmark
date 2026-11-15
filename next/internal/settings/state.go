@@ -65,10 +65,18 @@ func ConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "Plainmark-Go", "state.json"), nil
+	return filepath.Join(dir, "Plainmark", "state.json"), nil
 }
 func Load(path string) (State, error) {
 	data, err := os.ReadFile(path)
+	// The renamed app keeps the previous profile on its first launch.
+	// Explicit profiles stay isolated, and an existing new file always wins.
+	if errors.Is(err, os.ErrNotExist) && os.Getenv("PLAINMARK_CONFIG_DIR") == "" {
+		if current, configErr := ConfigPath(); configErr == nil && path == current {
+			legacy := filepath.Join(filepath.Dir(filepath.Dir(path)), "Plainmark-Go", "state.json")
+			data, err = os.ReadFile(legacy)
+		}
+	}
 	if err != nil {
 		return NewState(), err
 	}

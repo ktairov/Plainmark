@@ -40,7 +40,7 @@ def main():
         first.mkdir()
         app = NativeApp(binary, first, config, notes)
         try:
-            app.menu("Plainmark Go", "Settings…")
+            app.menu("Plainmark", "Settings…")
             app.wait(lambda: dialog_open(app), "application menu did not open settings")
             assert not any(n.get("key") == "close-settings" for n in app.tree()), "settings header still has a close button"
             press(app, "settings-section-theme")
@@ -65,7 +65,7 @@ def main():
         second.mkdir()
         app = NativeApp(binary, second, config)
         try:
-            app.menu("Plainmark Go", "Настройки…")
+            app.menu("Plainmark", "Настройки…")
             app.wait(lambda: dialog_open(app), "settings did not open after restart")
             capture(app, "settings-native-ru-narrow.png")
             press(app, "settings-section-language")
@@ -83,7 +83,7 @@ def main():
             app.wait(lambda: any(n.get("role") == "dialog" and n.get("label") == "Settings" for n in app.tree()), "language preview failed")
             press(app, "cancel-settings")
             app.wait(lambda: not dialog_open(app), "Cancel did not close settings")
-            app.menu("Plainmark Go", "Настройки…")
+            app.menu("Plainmark", "Настройки…")
             app.wait(lambda: any(n.get("role") == "dialog" and n.get("label") == "Настройки" for n in app.tree()), "Cancel did not restore Russian")
             app.rpc("input", events=[{"type": "key", "key": "Escape"}])
             app.wait(lambda: not dialog_open(app), "Escape did not close settings")

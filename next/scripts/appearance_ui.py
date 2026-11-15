@@ -45,7 +45,7 @@ def main():
             assert not any(n.get("key") in ("settings", "more") for n in app.tree()), "removed toolbar buttons remain"
             press(app, "toggle-color")
             capture(app, "window-local-night.png")
-            app.menu("Plainmark Go", "Settings…")
+            app.menu("Plainmark", "Settings…")
             app.wait(lambda: any(n.get("key") == "apply-settings" for n in app.tree()), "settings missing")
             for key in ("apply-settings", "cancel-settings", "reset-settings"):
                 button_size(app, key)
