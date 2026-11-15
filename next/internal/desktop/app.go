@@ -33,7 +33,9 @@ type Document struct {
 	previewReady       bool
 	cleanSource        string
 	previewDoc         *parser.Document
+	previewLines       []int
 	listMarkerDigits   int
+	splitScroll        splitScrollState
 	FindOpen           bool
 	Query              string
 	Match              int

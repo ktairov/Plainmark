@@ -3,6 +3,7 @@ package desktop
 import (
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -47,6 +48,12 @@ func (d *Document) preparePreview() {
 			d.Match = 0
 		}
 		d.previewDoc = parser.Parse(d.previewSource)
+		d.previewLines = append(d.previewLines[:0], 0)
+		for i, ch := range d.previewSource {
+			if ch == '\n' {
+				d.previewLines = append(d.previewLines, i+1)
+			}
+		}
 		d.listMarkerDigits = orderedListDigits(d.previewDoc)
 		d.previewReady = true
 		d.lastQuery, d.lastMatch, d.lastUnlockRevision = query, d.Match, d.unlockRevision
@@ -85,8 +92,16 @@ func (a *App) preview(c *ui.Context, d *Document) {
 			a.navigateNote(path, anchor, c.Modifiers()&(ui.Cmd|ui.Ctrl) != 0)
 		}
 		active, selected, mapped := -1, -1, false
+		d.splitScroll.blocks = d.splitScroll.blocks[:0]
 		needsScroll := d.FindOpen && d.searchRevision != d.scrolledRevision
 		d.MD.Block = func(c *ui.Context, doc *parser.Document, index int) bool {
+			if d.Tab.Mode == session.Split && doc.Block(index).Parent == 0 {
+				marker := ui.Box(c).Key("split-scroll-anchor").Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough()
+				if bounds := marker.Bounds(); bounds.H > 0 {
+					line := sort.SearchInts(d.previewLines, doc.Block(index).Start+1) - 1
+					d.splitScroll.blocks = append(d.splitScroll.blocks, scrollBlock{line: line, y: float64(bounds.Y)})
+				}
+			}
 			if !mapped {
 				mapped = true
 				if d.Tab.Mode == session.Split {
@@ -125,7 +140,10 @@ func (a *App) preview(c *ui.Context, d *Document) {
 		}
 		width, _ := c.Size()
 		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(24, min(float32(80), width*.07), 80).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(float32(a.preferences.PreviewWidth)).AlignSelf(ui.Center).Children(func() { markdown.View(c, d.previewSource, &d.MD).FillWidth() })
+			ui.Column(c).FillWidth().MaxWidth(float32(a.preferences.PreviewWidth)).AlignSelf(ui.Center).Children(func() {
+				content := markdown.View(c, d.previewSource, &d.MD).FillWidth()
+				d.splitScroll.contentY = float64(content.Bounds().Y)
+			})
 		})
 		d.scrolledRevision = d.searchRevision
 	})

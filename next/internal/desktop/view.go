@@ -274,11 +274,14 @@ func (a *App) documentArea(c *ui.Context) {
 		ui.Column(c).Key(d.Tab).Grow(1).FillWidth().MinHeight(0).Children(func() {
 			switch d.Tab.Mode {
 			case session.Preview:
+				d.splitScroll.ready = false
 				a.preview(c, d)
 			case session.Edit:
+				d.splitScroll.ready = false
 				a.edit(c, d)
 			default:
 				ui.SplitPercent(c, &a.ratio, func() { a.edit(c, d) }, func() { a.preview(c, d) }).Grow(1).FillWidth()
+				d.syncSplitScroll(c)
 			}
 		})
 	})
