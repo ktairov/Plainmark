@@ -349,7 +349,11 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 							a.closeTabs(a.allPaths())
 						}
 					})
-					if a.windowButton(c, "x", a.t("Close {title}", "title", tab.Note.Title), "").Size(20, 20).Margin(0, 4, 0, 0).Disabled(a.busy).Clicked() {
+					closeLabel := a.t("Close {title}", "title", tab.Note.Title)
+					closeButton := ui.ButtonBase(c).Size(20, 20).Shrink(0).Padding(2).Center().Margin(0, 4, 0, 0).
+						Label(closeLabel).Tooltip(closeLabel).TextColor(c.Theme().TextMuted).Disabled(a.busy).
+						Children(func() { ui.Icon(c, icons.Get("x")).Size(16, 16).Shrink(0) })
+					if closeButton.Clicked() {
 						a.closeTabs([]string{tab.Note.Path})
 					}
 				})
