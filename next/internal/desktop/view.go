@@ -322,7 +322,7 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 					if a.session.Active == tab.Note.Path {
 						button.Background(ui.Transparent).TextColor(c.Theme().Text)
 					}
-					if button.Hovered() && a.session.Active != tab.Note.Path {
+					if tabRow.Hovered() && a.session.Active != tab.Note.Path {
 						tabRow.Background(c.Theme().SurfaceHover)
 					}
 					if button.Clicked() {
