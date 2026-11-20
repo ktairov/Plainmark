@@ -50,7 +50,7 @@ go test ./...
 go vet ./...
 ```
 
-See the [developer README](src/README.md) for native UI checks, configuration, and project dependencies. The Go implementation lives in `src/`. The earlier Tauri implementation is preserved in Git history at commit `cb2275f`.
+See the [developer README](src/README.md) for native UI checks, configuration, and project dependencies, and the [LLM migration guide](MIGRATION_GUIDE.md) for lessons from the Tauri 2/Rust → Go/MyGo rewrite. The Go implementation lives in `src/`. The earlier Tauri implementation is preserved in Git history at commit `cb2275f`.
 
 ## License
 
