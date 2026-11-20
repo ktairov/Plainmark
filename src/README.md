@@ -48,7 +48,7 @@ go build -o build/plainmark ./cmd/plainmark
 
 ## Settings and session state
 
-Open settings through the application menu or **Cmd+,** on macOS. The toolbar's day/night control temporarily changes the appearance of the current window. With System appearance selected, a system theme change clears that override and resumes following the system. Explicit Day and Night preferences remain independent of system appearance.
+Open settings through **Plainmark → Settings…** or **Cmd+,** on macOS, and **Edit → Settings…** or **Ctrl+,** on Linux and Windows. The toolbar's day/night control temporarily changes the appearance of the current window. With System appearance selected, a system theme change clears that override and resumes following the system. Explicit Day and Night preferences remain independent of system appearance.
 
 The default macOS configuration file is:
 

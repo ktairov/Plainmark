@@ -3,6 +3,7 @@ package desktop
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -66,6 +67,10 @@ func (a *App) menuBlocked() bool {
 	return a.busy || a.pending != nil || a.form != nil || a.deleting != nil || a.crypto != nil || a.settingsOpen
 }
 func (a *App) menuTemplate() []*mygo.MenuItem {
+	return a.menuTemplateForPlatform(runtime.GOOS)
+}
+
+func (a *App) menuTemplateForPlatform(goos string) []*mygo.MenuItem {
 	d := a.current()
 	hasNote := d != nil
 	dirty := hasNote && d.Tab.Dirty()
@@ -171,21 +176,30 @@ func (a *App) menuTemplate() []*mygo.MenuItem {
 		item("close-all-tabs", "closeAllTabs", "", blocked || len(a.session.Tabs) == 0, func() { a.closeTabs(a.allPaths()) }),
 		mygo.Separator(), {Role: mygo.RoleMinimize}, {Role: mygo.RoleZoom},
 	}
+	settings := item("settings", "settings", "CmdOrCtrl+,", blocked, a.openSettings)
+	quit := &mygo.MenuItem{ID: "plainmark.quit", Role: mygo.RoleQuit, Label: a.menuText("quit")}
 	app := []*mygo.MenuItem{
 		{Role: mygo.RoleAbout}, mygo.Separator(),
-		item("settings", "settings", "CmdOrCtrl+,", blocked, a.openSettings), mygo.Separator(),
+		settings, mygo.Separator(),
 		{Role: mygo.RoleServices}, mygo.Separator(),
 		{Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide}, mygo.Separator(),
-		{ID: "plainmark.quit", Role: mygo.RoleQuit, Label: a.menuText("quit")},
+		quit,
 	}
-	return []*mygo.MenuItem{
-		{Role: mygo.RoleAppMenu, Submenu: app},
+	if goos != "darwin" {
+		edit = append(edit, mygo.Separator(), settings)
+		file = append(file, mygo.Separator(), quit)
+	}
+	menus := []*mygo.MenuItem{
 		{Label: a.menuText("file"), Submenu: file},
 		{Label: a.menuText("edit"), Submenu: edit},
 		{Label: a.menuText("view"), Submenu: view},
 		{Label: a.menuText("note"), Submenu: note},
 		{Label: a.menuText("window"), Submenu: window},
 	}
+	if goos == "darwin" {
+		menus = append([]*mygo.MenuItem{{Role: mygo.RoleAppMenu, Submenu: app}}, menus...)
+	}
+	return menus
 }
 func (a *App) closeOtherTabs() {
 	var paths []string

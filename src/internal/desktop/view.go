@@ -41,6 +41,10 @@ func (a *App) view(c *ui.Context) {
 		}
 	}
 	if !a.menuBlocked() {
+		if c.Shortcut(ui.Cmd, ui.KeyComma) {
+			a.closePopup()
+			a.openSettings()
+		}
 		for i := range min(len(a.session.Tabs), 9) {
 			if c.Shortcut(ui.Cmd, ui.Key1+ui.Key(i)) {
 				a.activate(a.session.Tabs[i].Note.Path)

@@ -48,7 +48,7 @@ func TestNativeMenuMatchesOriginalStructureAndState(t *testing.T) {
 		{"toggle-pin", "encrypt-selection", "-", "copy-path", "copy-relative-path", "reveal-note", "-", "rename", "move", "-", "delete"},
 		{"previous-tab", "next-tab", "-", "close-other-tabs", "close-all-tabs", "-", "minimize", "zoom"},
 	}
-	template := a.menuTemplate()
+	template := a.menuTemplateForPlatform("darwin")
 	if len(template) != len(want) {
 		t.Fatal("wrong top-level menu count")
 	}
@@ -70,7 +70,7 @@ func TestNativeMenuMatchesOriginalStructureAndState(t *testing.T) {
 	a.sidebarVisible = false
 	a.appearanceDark = true
 	a.preferences.Language = "ru"
-	template = a.menuTemplate()
+	template = a.menuTemplateForPlatform("darwin")
 	for id, label := range map[string]string{"toggle-pin": "Открепить", "toggle-sidebar": "Показать боковую панель", "toggle-color-mode": "Дневной режим", "settings": "Настройки…"} {
 		if item := menuByID(template, id); item.Label != label {
 			t.Fatalf("%s: %q", id, item.Label)
@@ -80,14 +80,65 @@ func TestNativeMenuMatchesOriginalStructureAndState(t *testing.T) {
 	a.openNote("b.md", "")
 	a.current().Tab.Mode = session.Edit
 	a.current().Code.Select(0, 3)
-	template = a.menuTemplate()
+	template = a.menuTemplateForPlatform("darwin")
 	if menuByID(template, "next-tab").Disabled || menuByID(template, "encrypt-selection").Disabled {
 		t.Fatal("multi-tab/selection actions remained disabled")
 	}
 	a.settingsOpen = true
-	template = a.menuTemplate()
+	template = a.menuTemplateForPlatform("darwin")
 	if !menuByID(template, "rename").Disabled || !menuByID(template, "find").Disabled {
 		t.Fatal("document commands remained enabled under a modal")
+	}
+}
+
+func TestSettingsMenuOnEachPlatform(t *testing.T) {
+	for _, platform := range []string{"darwin", "linux", "windows"} {
+		t.Run(platform, func(t *testing.T) {
+			a, _ := workspaceApp(t)
+			a.preferences.Language = "en"
+			menus := a.menuTemplateForPlatform(platform)
+			var settings *mygo.MenuItem
+			count := 0
+			for _, group := range menus {
+				for _, entry := range group.Submenu {
+					if entry.ID != "plainmark.settings" {
+						continue
+					}
+					count++
+					settings = entry
+					if platform == "darwin" && group.Role != mygo.RoleAppMenu || platform != "darwin" && group.Label != a.menuText("edit") {
+						t.Fatalf("settings in wrong menu: %q/%s", group.Label, group.Role)
+					}
+				}
+			}
+			if count != 1 || settings.Disabled || settings.Accelerator != "CmdOrCtrl+," {
+				t.Fatalf("missing or invalid settings command: count=%d item=%+v", count, settings)
+			}
+			settings.Click(settings, nil)
+			if !a.settingsOpen {
+				t.Fatal("settings command did not open dialog")
+			}
+			if !menuByID(a.menuTemplateForPlatform(platform), "settings").Disabled {
+				t.Fatal("settings command remains enabled under modal")
+			}
+		})
+	}
+}
+
+func TestSettingsPrimaryCommaShortcut(t *testing.T) {
+	a, _ := workspaceApp(t)
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyComma)
+	if !a.settingsOpen {
+		t.Fatal("platform primary modifier + comma did not open settings")
+	}
+	tt.Key(0, ui.KeyEscape)
+	a.form = &pathForm{operation: "note"}
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyComma)
+	if a.settingsOpen {
+		t.Fatal("settings shortcut opened over another modal")
 	}
 }
 
