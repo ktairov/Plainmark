@@ -110,11 +110,14 @@ type App struct {
 }
 
 func New() (*App, error) {
+	if err := settings.RegisterFonts(); err != nil {
+		return nil, err
+	}
 	m, err := mathrender.New()
 	if err != nil {
 		return nil, err
 	}
-	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), saved: settings.NewState(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: 340, sidebarVisible: true,
+	return &App{math: m, docs: map[*session.Tab]*Document{}, preferences: settings.Defaults(), saved: settings.NewState(), resolvedLanguage: "en", wrap: true, ratio: 50, sidebarWidth: settings.DefaultSidebarWidth, sidebarVisible: true,
 		expanded: map[string]*bool{}, pins: map[string]map[string]bool{}, status: "Open a Markdown folder or file to begin",
 		run: func(fn func()) { go fn() }, trash: func(path string) error { return mygo.Shell.TrashItem(path) }}, nil
 }
@@ -645,6 +648,7 @@ func Run(path string) error {
 	mygo.App.SetWindowStateStore(a)
 	a.nativeLocale = a.preferences.Language
 	mygo.App.OnOpenFile(func(path string) { a.update(func() { a.pendingFiles = append(a.pendingFiles, path); a.pumpFiles() }) })
+	var removeModeShortcuts func()
 	mygo.App.WhenReady(func() {
 		if writable {
 			a.writer = settings.NewWriter(configPath)
@@ -653,6 +657,7 @@ func Run(path string) error {
 		options.Content = ui.View(a.view)
 		a.win = mygo.NewWindow(options)
 		a.installMenu()
+		removeModeShortcuts = a.installModeShortcuts()
 		a.watchStateWrites()
 		if a.store != nil {
 			w := a.store
@@ -678,6 +683,9 @@ func Run(path string) error {
 		a.pumpFiles()
 	})
 	mygo.App.OnQuit(func() {
+		if removeModeShortcuts != nil {
+			removeModeShortcuts()
+		}
 		if a.watcher != nil {
 			a.watcher.Close()
 		}

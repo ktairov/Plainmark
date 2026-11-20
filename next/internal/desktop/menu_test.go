@@ -91,6 +91,31 @@ func TestNativeMenuMatchesOriginalStructureAndState(t *testing.T) {
 	}
 }
 
+func TestViewModeShortcuts(t *testing.T) {
+	a, _ := workspaceApp(t)
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	for _, step := range []struct {
+		key  ui.Key
+		mode session.Mode
+	}{
+		{ui.Key2, session.Edit},
+		{ui.Key3, session.Split},
+		{ui.Key1, session.Preview},
+	} {
+		tt.Key(ui.Alt, step.key)
+		if got := a.current().Tab.Mode; got != step.mode {
+			t.Fatalf("shortcut %v set mode %v, want %v", step.key, got, step.mode)
+		}
+	}
+	a.openSettings()
+	tt.Frame()
+	tt.Key(ui.Alt, ui.Key2)
+	if a.current().Tab.Mode != session.Preview {
+		t.Fatal("mode shortcut ran behind settings")
+	}
+}
+
 func TestContextMenusMatchOriginalAndOpenNewTab(t *testing.T) {
 	a, _ := workspaceApp(t)
 	path, folder := "b.md", false

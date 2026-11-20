@@ -3,11 +3,14 @@ module plainmark
 go 1.27.3
 
 require (
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.7.4
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/go-fonts/latin-modern v0.3.3
 	github.com/go-tex/math v0.50.0
 	github.com/luo-studio/go-tex v0.0.0-20260508062349-60635a3613c5
 	golang.org/x/crypto v0.58.0
+	golang.org/x/image v0.46.0
 )
 
 require (
@@ -21,8 +24,6 @@ require (
 	github.com/benoitkugler/textlayout v0.3.2 // indirect
 	github.com/benoitkugler/textprocessing v0.0.6 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
-	github.com/go-fonts/latin-modern v0.3.3 // indirect
 	github.com/go-opentype/opentype v0.13.0 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
@@ -33,7 +34,6 @@ require (
 	github.com/tdewolff/minify/v2 v2.24.11 // indirect
 	github.com/tdewolff/parse/v2 v2.8.11 // indirect
 	github.com/yuin/goldmark v1.8.2 // indirect
-	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

@@ -3,7 +3,6 @@ package settings
 import (
 	_ "embed"
 	"encoding/json"
-	"runtime"
 	"slices"
 )
 
@@ -45,7 +44,7 @@ func (p *Preferences) Normalize() {
 		p.NightTheme = d.NightTheme
 	}
 	for _, value := range []*string{&p.UIFont, &p.ReadingFont} {
-		if !slices.Contains([]string{"system", "humanist", "serif", "mono"}, *value) {
+		if !validFont(*value) {
 			*value = "system"
 		}
 	}
@@ -61,26 +60,6 @@ func (p Preferences) Dark(system bool) bool {
 		return false
 	}
 	return system
-}
-func Font(id string) string {
-	switch id {
-	case "humanist":
-		if runtime.GOOS == "darwin" {
-			return "Avenir Next"
-		}
-		return "Segoe UI"
-	case "serif":
-		if runtime.GOOS == "darwin" {
-			return "Charter"
-		}
-		return "Georgia"
-	case "mono":
-		if runtime.GOOS == "darwin" {
-			return "Menlo"
-		}
-		return "Consolas"
-	}
-	return ""
 }
 
 type Palette struct{ Page, Control, Code, Text, TextSecondary, Muted, Border, Accent, AccentSoft, AccentContrast, Selected, Selection, Heading, Link, Success, Warning, Danger string }

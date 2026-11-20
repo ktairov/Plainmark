@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"plainmark/internal/icons"
@@ -145,6 +146,14 @@ func (a *App) fontSettings(c *ui.Context, reading bool) {
 		})
 		ui.Row(c).Gap(8).Shrink(0).Children(func() {
 			fonts := []selectOption{{id: "system", label: a.t("System")}, {id: "humanist", label: a.t("Humanist")}, {id: "serif", label: a.t("Serif")}, {id: "mono", label: a.t("Monospace")}}
+			selected := false
+			for _, choice := range settings.FontChoices() {
+				fonts = append(fonts, selectOption{id: choice.ID, label: choice.Name})
+				selected = selected || choice.ID == *font
+			}
+			if family, ok := strings.CutPrefix(*font, "family:"); ok && !selected {
+				fonts = append(fonts, selectOption{id: *font, label: family + " → " + settings.Font(*font)})
+			}
 			a.selectControl(c, "settings-"+label, label, *font, fonts, func(value string) { *font = value }).Width(145)
 			var sizes []selectOption
 			for n := 13; n <= upper; n++ {

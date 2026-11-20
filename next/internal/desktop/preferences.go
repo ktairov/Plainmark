@@ -64,16 +64,10 @@ func (a *App) applyStyle(c *ui.Context) {
 	}
 	a.appearanceDark = dark
 	t := ui.LightTheme()
-	id := a.preferences.DayTheme
 	if dark {
 		t = ui.DarkTheme()
-		id = a.preferences.NightTheme
 	}
-	definition := settings.Themes[id]
-	p := definition.Light
-	if dark {
-		p = definition.Dark
-	}
+	p := a.palette(dark)
 	t.Background = ui.Hex(p.Page)
 	t.Surface = ui.Hex(p.Control)
 	t.SurfaceHover = ui.Hex(p.Selected)
@@ -97,6 +91,13 @@ func (a *App) applyStyle(c *ui.Context) {
 	}
 	c.SetTheme(t)
 }
+func (a *App) palette(dark bool) settings.Palette {
+	if dark {
+		return settings.Themes[a.preferences.NightTheme].Dark
+	}
+	return settings.Themes[a.preferences.DayTheme].Light
+}
+
 func (a *App) openSettings() {
 	if a.busy || a.settingsOpen {
 		return

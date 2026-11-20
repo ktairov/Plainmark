@@ -41,7 +41,11 @@ func TestSplitScrollFollowsEitherPaneAndSettles(t *testing.T) {
 	if !ok {
 		t.Fatal("preview heading missing")
 	}
-	tt.Scroll(1050, 350, 0, heading.Y-44)
+	editor, ok := tt.Find("Markdown editor")
+	if !ok {
+		t.Fatal("split editor missing")
+	}
+	tt.Scroll(1050, 350, 0, heading.Y-editor.Y)
 	settle()
 	if delta := math.Abs(d.Code.ScrollY() - d.Code.LineTop(35*4)); delta > 5 {
 		t.Fatalf("preview scroll did not align source: delta=%v editor=%v preview=%v", delta, d.Code.ScrollY(), d.Scroll.Y)

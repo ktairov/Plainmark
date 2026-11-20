@@ -66,7 +66,7 @@ func (a *App) toolbar(c *ui.Context) {
 				}{{"eye", "Preview", session.Preview}, {"pencil-line", "Edit", session.Edit}, {"columns-2", "Split", session.Split}} {
 					button := a.windowButton(c, mode.icon, mode.label, "mode-"+mode.icon).Selected(d.Tab.Mode == mode.value)
 					if d.Tab.Mode == mode.value {
-						button.Background(t.SurfaceHover).TextColor(t.Text)
+						button.Background(t.Accent.Mix(t.Surface, .84)).TextColor(t.Accent)
 					}
 					if button.Clicked() {
 						d.Tab.Mode = mode.value
@@ -81,10 +81,10 @@ func (a *App) toolbar(c *ui.Context) {
 		if a.windowButton(c, themeIcon, "Toggle color mode", "toggle-color").Clicked() {
 			a.toggleColor()
 		}
-	}).Role(ui.RoleToolbar).Label(a.t("View mode")).Height(max(float32(44), bar.Height)).Shrink(0).FillWidth().Padding(0, max(float32(8), bar.Right), 0, left).Gap(4).Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).DragWindow()
+	}).Role(ui.RoleToolbar).Label(a.t("View mode")).Height(max(float32(44), bar.Height)).Shrink(0).FillWidth().Padding(0, max(float32(8), bar.Right), 0, left).Gap(4).DragWindow()
 }
 
-// Window chrome uses flat controls like the original title bar.
+// Window chrome uses flat icon buttons.
 func (a *App) windowButton(c *ui.Context, icon, label, key string) ui.Element {
 	button := ui.ButtonBase(c).Size(28, 28).Padding(6).Radius(6).Label(a.t(label)).Tooltip(a.t(label)).TextColor(c.Theme().TextMuted)
 	if key != "" {

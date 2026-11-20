@@ -5,7 +5,7 @@
 Для Arch Linux ARM 64-bit из `next/`:
 
 ```sh
-go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform linux/arm64
+go run ./tools/buildapp -platform linux/arm64
 ```
 
 Результат: `next/build/release/linux-arm64/`. Архив для переноса `plainmark-0.2.0-arch-aarch64.tar.gz` содержит `PKGBUILD`, Linux arm64-архив и две иконки. На целевой системе:
@@ -25,7 +25,7 @@ plainmark
 MyGo v0.7.4 собирает Linux-бинарник на macOS без C toolchain. Из `next/`:
 
 ```sh
-go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform linux/amd64
+go run ./tools/buildapp -platform linux/amd64
 ```
 
 Результат: `next/build/release/linux-amd64/`. Linux-конфигурация отключает зависимость от WebKitGTK, поскольку приложение использует native UI, и добавляет команду `plainmark`. Зависимость пакета Arch — `gtk3`.

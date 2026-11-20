@@ -6,9 +6,20 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 	"plainmark/internal/locales"
 	"plainmark/internal/session"
 )
+
+var viewModes = [...]struct {
+	id, label, accelerator string
+	key                    ui.Key
+	mode                   session.Mode
+}{
+	{"preview", "preview", "Alt+1", ui.Key1, session.Preview},
+	{"editor", "editor", "Alt+2", ui.Key2, session.Edit},
+	{"split", "split", "Alt+3", ui.Key3, session.Split},
+}
 
 func (a *App) syncMenu() {
 	if a.win == nil {
@@ -104,11 +115,8 @@ func (a *App) menuTemplate() []*mygo.MenuItem {
 		item("search-notes", "searchNotes", "CmdOrCtrl+Shift+F", blocked || a.store == nil, func() { a.sidebarVisible = true; a.focusSearch = true }),
 	}
 	view := []*mygo.MenuItem{}
-	for _, choice := range []struct {
-		id, key, shortcut string
-		mode              session.Mode
-	}{{"preview", "preview", "Alt+1", session.Preview}, {"editor", "editor", "Alt+2", session.Edit}, {"split", "split", "Alt+3", session.Split}} {
-		entry := item("view-"+choice.id, choice.key, choice.shortcut, blocked || !hasNote, func() {
+	for _, choice := range viewModes {
+		entry := item("view-"+choice.id, choice.label, choice.accelerator, blocked || !hasNote, func() {
 			if d := a.current(); d != nil {
 				d.Tab.Mode = choice.mode
 			}

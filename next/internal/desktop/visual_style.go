@@ -2,22 +2,13 @@ package desktop
 
 import (
 	"github.com/egoist/mygo/ui"
-	"plainmark/internal/settings"
 )
 
-// Values mirror src/styles.css and src/theme.css. Keep form controls separate
-// from the compact 28px title-bar buttons.
+// Form controls are larger than the compact title-bar buttons.
 type visualStyle struct{ page, control, text, secondary, muted, border, softBorder, strongBorder, accent, accentSoft, accentText, hover, controlHover, danger, dangerText ui.Color }
 
 func (a *App) visual(c *ui.Context) visualStyle {
-	id := a.preferences.DayTheme
-	if c.Theme().Dark {
-		id = a.preferences.NightTheme
-	}
-	p := settings.Themes[id].Light
-	if c.Theme().Dark {
-		p = settings.Themes[id].Dark
-	}
+	p := a.palette(c.Theme().Dark)
 	page, border, text, accent, control := ui.Hex(p.Page), ui.Hex(p.Border), ui.Hex(p.Text), ui.Hex(p.Accent), ui.Hex(p.Control)
 	dangerText := ui.Hex("#ffffff")
 	if c.Theme().Dark {

@@ -180,14 +180,7 @@ func fitListMarkers(c *ui.Context, theme *markdown.Theme, digits int) {
 }
 
 func (a *App) readingTheme(theme *ui.Theme) *markdown.Theme {
-	id := a.preferences.DayTheme
-	if theme.Dark {
-		id = a.preferences.NightTheme
-	}
-	palette := settings.Themes[id].Light
-	if theme.Dark {
-		palette = settings.Themes[id].Dark
-	}
+	palette := a.palette(theme.Dark)
 	reading := markdown.DefaultTheme(theme)
 	reading.FontSize = float32(a.preferences.ContentFontSize)
 	reading.Font = settings.Font(a.preferences.ReadingFont)

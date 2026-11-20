@@ -2,7 +2,7 @@
   "name": "Plainmark",
   "slug": "plainmark",
   "identifier": "com.plainmark.app",
-  "version": "0.2.0",
+  "version": "0.2.53",
   "main": "./cmd/plainmark",
   "icon": "resources/icon.png",
   "out": "build/release",

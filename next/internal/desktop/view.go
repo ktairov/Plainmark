@@ -40,6 +40,20 @@ func (a *App) view(c *ui.Context) {
 			a.closeTabs([]string{d.Tab.Note.Path})
 		}
 	}
+	if !a.menuBlocked() {
+		for i := range min(len(a.session.Tabs), 9) {
+			if c.Shortcut(ui.Cmd, ui.Key1+ui.Key(i)) {
+				a.activate(a.session.Tabs[i].Note.Path)
+			}
+		}
+		if d := a.current(); d != nil {
+			for _, choice := range viewModes {
+				if c.Shortcut(ui.Alt, choice.key) {
+					d.Tab.Mode = choice.mode
+				}
+			}
+		}
+	}
 	if root.Shortcut(ui.Cmd, ui.KeyN) && a.store != nil && !a.busy {
 		a.form = &pathForm{operation: "note", path: a.activeFolder}
 	}
@@ -49,11 +63,11 @@ func (a *App) view(c *ui.Context) {
 	root.Children(func() {
 		a.toolbar(c)
 		if a.sidebarVisible {
-			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, func() { a.documentArea(c) }).Grow(1).FillWidth()
+			a.sidebarSplit(c)
 		} else {
 			a.documentArea(c)
 		}
-		ui.Row(c).Padding(4, 12).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
+		ui.Row(c).FillWidth().Padding(4, 14, 8).Children(func() {
 			ui.Text(c, a.displayStatus()).Key("status").FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
 			if d := a.current(); d != nil && d.Tab.Mode != session.Preview {
@@ -74,6 +88,21 @@ func (a *App) view(c *ui.Context) {
 	a.syncMenu()
 	a.persistState()
 	a.pumpFiles()
+}
+
+func (a *App) sidebarSplit(c *ui.Context) {
+	theme := c.Theme()
+	splitTheme := *theme
+	// MyGo paints the divider with Border at rest and Accent on hover or drag.
+	splitTheme.Border = ui.Transparent
+	splitTheme.Accent = ui.Transparent
+	ui.Themed(c, &splitTheme).Background(ui.Transparent).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		ui.Split(c, &a.sidebarWidth, func() {
+			ui.Themed(c, theme).Background(ui.Transparent).Fill().Children(func() { a.sidebar(c) })
+		}, func() {
+			ui.Themed(c, theme).Background(ui.Transparent).Fill().MinWidth(0).Children(func() { a.documentArea(c) })
+		}).Grow(1).FillWidth()
+	})
 }
 
 func (a *App) pinned() map[string]bool {
@@ -99,9 +128,9 @@ func (a *App) matches(n workspace.Entry) bool {
 }
 func (a *App) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().FontSize(float32(a.preferences.TreeFontSize)).Background(t.Background).Children(func() {
+	ui.Column(c).Fill().FontSize(float32(a.preferences.TreeFontSize)).Children(func() {
 		c.Key("note-search")
-		search := ui.SearchField(c, &a.query).Label(a.t("Search notes")).Placeholder(a.t("Search notes")).Height(34).Margin(16, 16, 12, 16)
+		search := ui.SearchField(c, &a.query).Label(a.t("Search notes")).Placeholder(a.t("Search notes")).Height(30).Radius(8).Background(t.Surface).Border(1, t.Border).Margin(10, 12, 8, 12)
 		if a.focusSearch {
 			search.Focus()
 			a.focusSearch = false
@@ -132,7 +161,7 @@ func (a *App) sidebar(c *ui.Context) {
 			if root.Clicked() && !rootContext {
 				a.activeFolder = ""
 			}
-			a.dropFolder(root, "")
+			a.dropFolder(root, "", t.Accent)
 			ui.Tree(c, func() { a.folderChildren(c, "") }).FillWidth()
 		})
 		if a.store != nil {
@@ -182,7 +211,7 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 			}
 			ui.Icon(c, icons.Get(icon)).Size(14, 14).TextColor(c.Theme().TextMuted)
 			ui.Text(c, f.Name).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-		}).Gap(7).Height(32).Radius(6).TextColor(c.Theme().TextMuted).Drag(fileDrag{f.Path})
+		}).Gap(7).Height(30).Radius(7).TextColor(c.Theme().TextMuted).Drag(fileDrag{f.Path})
 		if a.activeFolder == f.Path {
 			row.Background(c.Theme().SurfaceHover)
 		}
@@ -191,7 +220,7 @@ func (a *App) folderChildren(c *ui.Context, folder string) {
 			a.activeFolder = f.Path
 			*open = !*open
 		}
-		a.dropFolder(row, f.Path)
+		a.dropFolder(row, f.Path, c.Theme().Accent)
 	}
 	for _, n := range a.snapshot.Notes {
 		if n.Folder == folder && a.matches(n) && !a.pinned()[n.Path] {
@@ -203,7 +232,7 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	active := a.session.Active == n.Path
 	color := c.Theme().TextMuted
 	if active {
-		color = c.Theme().AccentText
+		color = c.Theme().Text
 	}
 	prefix := "note:"
 	if pinned {
@@ -216,7 +245,7 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 	} else {
 		row = ui.TreeItem(c, "", nil, nil).Selected(active)
 	}
-	row.Label(n.Title).Gap(7).Height(34).Radius(6).TextColor(color).Children(func() {
+	row.Label(n.Title).Gap(7).Height(30).Radius(7).TextColor(color).Children(func() {
 		name := "file-text"
 		if pinned {
 			name = "pin"
@@ -225,9 +254,9 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 		ui.Text(c, n.Title).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 	})
 	if active {
-		row.Background(c.Theme().Accent)
-	} else if row.Hovered() {
 		row.Background(c.Theme().SurfaceHover)
+	} else if row.Hovered() {
+		row.Background(c.Theme().Surface)
 	}
 	row.Tooltip(n.Path).Disabled(a.busy).Drag(fileDrag{n.Path})
 	context := a.pathPopup(c, row, n.Path, false)
@@ -236,9 +265,9 @@ func (a *App) noteRow(c *ui.Context, n workspace.Entry, pinned bool) {
 		a.navigateNote(n.Path, "", row.ClickModifiers()&(ui.Cmd|ui.Ctrl) != 0)
 	}
 }
-func (a *App) dropFolder(row ui.Element, path string) {
+func (a *App) dropFolder(row ui.Element, path string, accent ui.Color) {
 	if _, over := ui.DragOver[fileDrag](row); over {
-		row.Border(1, ui.Hex("#4f8cff"))
+		row.Border(1, accent)
 	}
 	if drag, ok := ui.Drop[fileDrag](row); ok && !a.busy {
 		a.movePath(drag.Path, path)
@@ -246,44 +275,55 @@ func (a *App) dropFolder(row ui.Element, path string) {
 }
 
 func (a *App) documentArea(c *ui.Context) {
-	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
+	t := c.Theme()
+	left := float32(10)
+	if a.sidebarVisible {
+		// Put the document border inside the split handle's hit area.
+		left = 0
+	}
+	ui.Column(c).Grow(1).FillHeight().MinWidth(0).MinHeight(0).Padding(8, 12, 4, left).Children(func() {
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Radius(12).Border(1, t.Border).Background(t.Background).Clip().Children(func() {
+			a.documentContent(c)
+		})
+	})
+}
 
-		d := a.current()
-		if d == nil {
-			ui.Column(c).Grow(1).FillWidth().Center().Children(func() { ui.Text(c, a.t("Open a note from the sidebar")).TextColor(c.Theme().TextMuted) })
-			return
-		}
-		if d.Tab.Conflict {
-			ui.Row(c).Gap(8).Padding(8).Background(c.Theme().Surface).Children(func() {
-				message := "File changed on disk. Your draft is kept."
-				if d.Tab.Removed {
-					message = "File was removed. Your draft is kept."
-				}
-				ui.Text(c, a.t(message))
-				if ui.Button(c, a.t("Reload")).Disabled(a.busy || d.Tab.Removed).Clicked() {
-					a.reload(d)
-				}
-				if ui.Button(c, a.t("Save copy")).Disabled(a.busy).Clicked() {
-					a.saveCopy(d)
-				}
-				if ui.Button(c, a.t("Overwrite")).Disabled(a.busy || d.Tab.Removed).Clicked() {
-					a.saveDocument(d, true, nil)
-				}
-			})
-		}
-		ui.Column(c).Key(d.Tab).Grow(1).FillWidth().MinHeight(0).Children(func() {
-			switch d.Tab.Mode {
-			case session.Preview:
-				d.splitScroll.ready = false
-				a.preview(c, d)
-			case session.Edit:
-				d.splitScroll.ready = false
-				a.edit(c, d)
-			default:
-				ui.SplitPercent(c, &a.ratio, func() { a.edit(c, d) }, func() { a.preview(c, d) }).Grow(1).FillWidth()
-				d.syncSplitScroll(c)
+func (a *App) documentContent(c *ui.Context) {
+	d := a.current()
+	if d == nil {
+		ui.Column(c).Grow(1).FillWidth().Center().Children(func() { ui.Text(c, a.t("Open a note from the sidebar")).TextColor(c.Theme().TextMuted) })
+		return
+	}
+	if d.Tab.Conflict {
+		ui.Row(c).Gap(8).Padding(8).Background(c.Theme().Surface).Children(func() {
+			message := "File changed on disk. Your draft is kept."
+			if d.Tab.Removed {
+				message = "File was removed. Your draft is kept."
+			}
+			ui.Text(c, a.t(message))
+			if ui.Button(c, a.t("Reload")).Disabled(a.busy || d.Tab.Removed).Clicked() {
+				a.reload(d)
+			}
+			if ui.Button(c, a.t("Save copy")).Disabled(a.busy).Clicked() {
+				a.saveCopy(d)
+			}
+			if ui.Button(c, a.t("Overwrite")).Disabled(a.busy || d.Tab.Removed).Clicked() {
+				a.saveDocument(d, true, nil)
 			}
 		})
+	}
+	ui.Column(c).Key(d.Tab).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		switch d.Tab.Mode {
+		case session.Preview:
+			d.splitScroll.ready = false
+			a.preview(c, d)
+		case session.Edit:
+			d.splitScroll.ready = false
+			a.edit(c, d)
+		default:
+			ui.SplitPercent(c, &a.ratio, func() { a.edit(c, d) }, func() { a.preview(c, d) }).Grow(1).FillWidth()
+			d.syncSplitScroll(c)
+		}
 	})
 }
 func (a *App) edit(c *ui.Context, d *Document) {
@@ -306,7 +346,7 @@ func (a *App) tabs(c *ui.Context) ui.Element {
 			for _, tab := range slices.Clone(a.session.Tabs) {
 				tabRow := ui.Row(c).Key(tab).Drag(tabDrag{tab.Note.Path}).AlignItems(ui.Center).Radius(7).Width(190).MinWidth(104).MaxWidth(220).Height(28)
 				if a.session.Active == tab.Note.Path {
-					tabRow.Background(c.Theme().Accent.Mix(c.Theme().Surface, .86))
+					tabRow.Background(c.Theme().SurfaceHover).Border(1, c.Theme().Border)
 					if a.lastVisibleTab != tab {
 						tabRow.ScrollIntoView()
 						a.lastVisibleTab = tab

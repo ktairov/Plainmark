@@ -24,16 +24,16 @@ make cross
 Без Make (например, из PowerShell) выполняется та же команда:
 
 ```sh
-go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform linux/amd64,linux/arm64,windows/amd64,windows/arm64 -skip-installer
+go run ./tools/buildapp -platform linux/amd64,linux/arm64,windows/amd64,windows/arm64 -skip-installer
 ```
 
 Для установщиков Windows нужен NSIS. На macOS его компилятор устанавливается командой `brew install makensis`; после установки:
 
 ```sh
-go run github.com/egoist/mygo/cmd/mygo@v0.7.4 build -platform windows/amd64,windows/arm64
+go run ./tools/buildapp -platform windows/amd64,windows/arm64
 ```
 
-MyGo создаёт установщики `plainmark-setup-0.2.0-amd64.exe` и `plainmark-setup-0.2.0-arm64.exe`. Без NSIS на macOS он пропускает этот шаг. Подпись Windows и её сертификаты — отдельная настройка для распространяемого выпуска.
+MyGo создаёт установщики `plainmark-setup-<версия>-amd64.exe` и `plainmark-setup-<версия>-arm64.exe`. Без NSIS на macOS он пропускает этот шаг. Подпись Windows и её сертификаты — отдельная настройка для распространяемого выпуска.
 
 Кросс-компиляция не подтверждает работу GUI. Проверять запуск, системные меню, диалоги, шрифты, clipboard, watcher, корзину и восстановление окна нужно на целевых системах. Пока GUI проверен на текущем Mac; Linux и Windows требуют такой проверки.
 

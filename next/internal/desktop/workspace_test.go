@@ -36,6 +36,30 @@ func workspaceApp(t *testing.T) (*App, string) {
 	return a, root
 }
 
+func TestNumberShortcutsFollowTabOrder(t *testing.T) {
+	a, _ := workspaceApp(t)
+	a.openTab(workspace.Note{Path: "b.md", Title: "Second"}, session.Edit)
+	tt := ui.NewTester(a.view, 1220, 820)
+	tt.Frame()
+	if err := tt.Click("Markdown editor"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.Key1)
+	if a.session.Active != "a.md" {
+		t.Fatalf("Cmd+1 selected %q", a.session.Active)
+	}
+	a.session.Reorder("b.md", "a.md")
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.Key1)
+	if a.session.Active != "b.md" {
+		t.Fatalf("Cmd+1 after reordering selected %q", a.session.Active)
+	}
+	tt.Key(ui.Cmd, ui.Key9)
+	if a.session.Active != "b.md" {
+		t.Fatalf("Cmd+9 without a ninth tab selected %q", a.session.Active)
+	}
+}
+
 func TestSidebarClickReplacesAndCommandClickAddsTab(t *testing.T) {
 	a, _ := workspaceApp(t)
 	first := a.current()
