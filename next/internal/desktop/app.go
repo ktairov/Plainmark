@@ -34,6 +34,7 @@ type Document struct {
 	cleanSource        string
 	previewDoc         *parser.Document
 	previewLines       []int
+	codeDiagrams       map[int]bool
 	listMarkerDigits   int
 	splitScroll        splitScrollState
 	FindOpen           bool

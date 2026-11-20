@@ -48,6 +48,7 @@ func (d *Document) preparePreview() {
 			d.Match = 0
 		}
 		d.previewDoc = parser.Parse(d.previewSource)
+		clear(d.codeDiagrams)
 		d.previewLines = append(d.previewLines[:0], 0)
 		for i, ch := range d.previewSource {
 			if ch == '\n' {
@@ -127,16 +128,20 @@ func (a *App) preview(c *ui.Context, d *Document) {
 		}
 		d.MD.Code = map[string]func(*ui.Context, *markdown.CodeBlockView){"encrypted": func(c *ui.Context, b *markdown.CodeBlockView) { a.encryptedBlock(c, d, strings.TrimSpace(b.Code())) }}
 		d.MD.CodeBlock = func(c *ui.Context, b *markdown.CodeBlockView) {
-			if !d.FindOpen || d.Query == "" {
+			search := d.FindOpen && d.Query != ""
+			compact, known := d.codeDiagrams[b.Index]
+			if !known {
+				compact = textDiagram(b.Language, b.Code())
+				if d.codeDiagrams == nil {
+					d.codeDiagrams = make(map[int]bool)
+				}
+				d.codeDiagrams[b.Index] = compact
+			}
+			if !search && !compact {
 				markdown.DefaultCodeBlock(c, b)
 				return
 			}
-			ui.Column(c).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Padding(8).Children(func() {
-				ui.Row(c).Children(func() { ui.Text(c, b.Language).FontSize(12); ui.Box(c).Grow(1); b.CopyButton(c) })
-				ui.ScrollHorizontal(c).FillWidth().Children(func() {
-					ui.RichText(c, searchSpans(b.Code(), d.Query, c.Theme())...).Font("Menlo").FontSize(14).NoWrap()
-				})
-			})
+			a.previewCodeBlock(c, d, b, search, compact)
 		}
 		width, _ := c.Size()
 		ui.Scroll(c).TrackScroll(&d.Scroll).Grow(1).FillWidth().Padding(24, min(float32(80), width*.07), 80).Children(func() {
@@ -184,6 +189,7 @@ func (a *App) readingTheme(theme *ui.Theme) *markdown.Theme {
 	reading := markdown.DefaultTheme(theme)
 	reading.FontSize = float32(a.preferences.ContentFontSize)
 	reading.Font = settings.Font(a.preferences.ReadingFont)
+	reading.CodeFont = settings.Font("mono")
 	reading.LineHeight = 1.65
 	reading.Link = ui.Hex(palette.Link)
 	reading.Muted = ui.Hex(palette.Muted)
