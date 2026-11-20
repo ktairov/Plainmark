@@ -1,9 +1,9 @@
 # Go / MyGo
 .mygo/
-/next/build/
-/next/bin/
-/next/dist/
-/next/vendor/
+/src/build/
+/src/bin/
+/src/dist/
+/src/vendor/
 *.test
 *.prof
 
@@ -31,4 +31,4 @@ Thumbs.db
 *~
 
 # Build number lock
-/next/.build-number.lock/
+/src/.build-number.lock/

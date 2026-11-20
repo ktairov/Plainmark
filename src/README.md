@@ -15,7 +15,7 @@ Node.js, Rust, cgo, and a WebView runtime are not needed to build or run the app
 
 ## Run and build
 
-Run these commands from `next/`:
+Run these commands from `src/`:
 
 ```sh
 go run ./cmd/plainmark ../testdata/workspace
@@ -38,7 +38,7 @@ All packaging targets use `go run ./tools/buildapp`, which increments the third 
 
 The macOS bundle uses a local ad-hoc signature and is not notarized. Go is not required to run the packaged app.
 
-Linux and Windows builds support AMD64 and ARM64. All targets share `mygo.json`; `make cross` builds all four targets, and `make linux-amd64`, `make linux-arm64`, `make windows-amd64`, and `make windows-arm64` build them individually. Windows targets produce portable builds by default; installers require NSIS. See [BUILDING.md](../docs/BUILDING.md) and [LINUX_ARCH.md](../docs/LINUX_ARCH.md), currently in Russian, for packaging details. Cross-compilation does not replace native GUI testing on each target system.
+Linux and Windows builds support AMD64 and ARM64. All targets share `mygo.json`; `make cross` builds all four targets, and `make linux-amd64`, `make linux-arm64`, `make windows-amd64`, and `make windows-arm64` build them individually. Windows targets produce portable builds by default; installers require NSIS. Cross-compilation does not replace native GUI testing on each target system.
 
 For an unpackaged development binary:
 
@@ -109,5 +109,3 @@ python3 scripts/crypto_compat.py
 MyGo is pinned to v0.7.4, and the application's math renderer, `go-tex/math`, to v0.50.0. The Luo-Studio math dependency is used only by the comparison tool and is not imported by the application.
 
 The original Tauri/Rust/React sources are preserved in Git history at `cb2275f`. The current implementation has its own palettes, translations, icons, and fixtures. The Linux package uses GTK 3 without WebKitGTK (`linux.webview: false`).
-
-The [migration plan](../docs/MIGRATION_PLAN.md), [acceptance checklist](../docs/ACCEPTANCE.md), and [UI implementation notes](../docs/STAGE_6.md) are currently in Russian. Stage reports describe the checks performed at the time of each stage.

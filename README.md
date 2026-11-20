@@ -19,7 +19,7 @@ Requires **Go 1.27.3 or newer**. Linux also requires **GTK 3**. The application 
 
 ```sh
 git clone https://github.com/ktairov/Plainmark.git
-cd Plainmark/next
+cd Plainmark/src
 go run ./cmd/plainmark
 ```
 
@@ -32,26 +32,26 @@ go run ./cmd/plainmark ../testdata/workspace/Math.md
 
 ## Build
 
-From `next/`, build the app for the current platform:
+From `src/`, build the app for the current platform:
 
 ```sh
 make build
 ```
 
-On Apple Silicon, the macOS app is written to `next/build/release/darwin-arm64/Plainmark.app`. Each packaged build increments the build number in `next/mygo.json`.
+On Apple Silicon, the macOS app is written to `src/build/release/darwin-arm64/Plainmark.app`. Each packaged build increments the build number in `src/mygo.json`.
 
-Linux and Windows targets are available for AMD64 and ARM64. See the [build guide](docs/BUILDING.md) and [Arch Linux guide](docs/LINUX_ARCH.md) for commands and packaging details; these guides are currently in Russian. Native GUI checks have been performed on macOS; Linux and Windows still need validation on their target systems.
+Linux and Windows targets are available for AMD64 and ARM64. See the [developer README](src/README.md) for individual build targets and packaging requirements. Native GUI checks have been performed on macOS; Linux and Windows still need validation on their target systems.
 
 ## Development
 
 ```sh
-cd next
+cd src
 go test ./...
 go vet ./...
 ```
 
-See the [developer README](next/README.md) for native UI checks, configuration, and project dependencies. The Go implementation lives in `next/`. The earlier Tauri implementation is preserved in Git history at commit `cb2275f`.
+See the [developer README](src/README.md) for native UI checks, configuration, and project dependencies. The Go implementation lives in `src/`. The earlier Tauri implementation is preserved in Git history at commit `cb2275f`.
 
 ## License
 
-[The Unlicense](LICENSE). Third-party dependencies and bundled assets retain their respective licenses, including the [Lucide icons](next/internal/icons/LICENSE).
+[The Unlicense](LICENSE). Third-party dependencies and bundled assets retain their respective licenses, including the [Lucide icons](src/internal/icons/LICENSE).
